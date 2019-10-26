@@ -5,6 +5,7 @@ import (
 	"github.com/coreos/etcd/clientv3"
 	"github.com/hackbeex/configcenter/local"
 	"github.com/hackbeex/configcenter/server"
+	"github.com/hackbeex/configcenter/util/log"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/reuseport"
 	"os"
@@ -26,7 +27,7 @@ func ConnectToEtcd() *clientv3.Client {
 		},
 	)
 	if err != nil {
-		logger.Exception(err)
+		log.Error(err)
 		os.Exit(-1)
 	}
 	return cli
@@ -51,11 +52,11 @@ func main() {
 	}
 
 	host := fmt.Sprintf("%s:%d", serverConf.ListenHost, serverConf.ListenPort)
-	logger.Infof("config server start at: %s", host)
+	log.Infof("config server start at: %s", host)
 	listener, err := reuseport.Listen("tcp4", host)
 	err = serv.Serve(listener)
 	if err != nil {
-		logger.Exception(err)
+		log.Error(err)
 		os.Exit(-1)
 	}
 }
