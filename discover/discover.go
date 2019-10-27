@@ -1,29 +1,25 @@
-package main
+package discover
 
 import (
 	"fmt"
-	"github.com/hackbeex/configcenter/discover"
 	"github.com/hackbeex/configcenter/local"
-	"github.com/hackbeex/configcenter/server"
 	"github.com/hackbeex/configcenter/util/log"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/reuseport"
 	"os"
 )
 
-func init() {
-	//todo: set run single or together mode
-	go discover.Run()
-
+func Run() {
+	table := initTable()
+	go runServer(table)
 }
 
-func main() {
+func runServer(table *Table) {
 	var srv *fasthttp.Server
 
-	conf := local.Conf.Server
+	conf := local.Conf.Discover
 	srv = &fasthttp.Server{
-		Handler: server.MainRequestHandler(),
-
+		Handler:            serverHandler(table),
 		Name:               conf.Name,
 		Concurrency:        conf.Concurrency,
 		ReadBufferSize:     conf.ReadBufferSize,
@@ -40,5 +36,11 @@ func main() {
 	if err != nil {
 		log.Error(err)
 		os.Exit(-1)
+	}
+}
+
+func serverHandler(table *Table) fasthttp.RequestHandler {
+	return func(ctx *fasthttp.RequestCtx) {
+
 	}
 }

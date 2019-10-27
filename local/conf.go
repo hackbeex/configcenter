@@ -13,6 +13,30 @@ const (
 )
 
 type LocalConf struct {
+	Discover struct {
+		Name               string `yaml:"Name"`
+		ListenHost         string `yaml:"ListenHost"`
+		ListenPort         int    `yaml:"ListenPort"`
+		Concurrency        int    `yaml:"Concurrency"`
+		DisabledKeepAlive  bool   `yaml:"DisabledKeepAlive"`
+		ReadBufferSize     int    `yaml:"ReadBufferSize"`
+		WriteBufferSize    int    `yaml:"WriteBufferSize"`
+		MaxRequestBodySize int    `yaml:"MaxRequestBodySize"`
+		ReduceMemoryUsage  bool   `yaml:"ReduceMemoryUsage"`
+
+		Etcd struct {
+			Name      string   `yaml:"Name"`
+			Endpoints []string `yaml:"Endpoints"`
+			Username  string   `yaml:"Username"`
+			Password  string   `yaml:"Password"`
+
+			AutoSyncInterval     int `yaml:"AutoSyncInterval"`
+			DialTimeout          int `yaml:"DialTimeout"`
+			DialKeepAliveTime    int `yaml:"DialKeepAliveTime"`
+			DialKeepAliveTimeout int `yaml:"DialKeepAliveTimeout"`
+		} `yaml:"Etcd"`
+	} `yaml:"Discover"`
+
 	Server struct {
 		Name             string   `yaml:"Name"`
 		ListenHost       string   `yaml:"ListenHost"`
@@ -26,18 +50,6 @@ type LocalConf struct {
 		MaxRequestBodySize int  `yaml:"MaxRequestBodySize"`
 		ReduceMemoryUsage  bool `yaml:"ReduceMemoryUsage"`
 	} `yaml:"Server"`
-
-	Etcd struct {
-		Name      string   `yaml:"Name"`
-		Endpoints []string `yaml:"Endpoints"`
-		Username  string   `yaml:"Username"`
-		Password  string   `yaml:"Password"`
-
-		AutoSyncInterval     int `yaml:"AutoSyncInterval"`
-		DialTimeout          int `yaml:"DialTimeout"`
-		DialKeepAliveTime    int `yaml:"DialKeepAliveTime"`
-		DialKeepAliveTimeout int `yaml:"DialKeepAliveTimeout"`
-	} `yaml:"Etcd"`
 }
 
 var (

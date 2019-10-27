@@ -1,15 +1,16 @@
 package server
 
-type Center struct {
-	Server []*Server
-}
+type EnvType string
+
+const (
+	EnvDev  EnvType = "develop"
+	EnvProd EnvType = "product"
+	EnvTest EnvType = "test"
+)
 
 type Server struct {
+	Id   string
 	Host string
 	Port int
-	Env  string
-}
-
-func (s *Server) Register() {
-
+	Env  EnvType
 }
