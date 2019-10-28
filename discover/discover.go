@@ -2,45 +2,43 @@ package discover
 
 import (
 	"fmt"
+	"github.com/gin-gonic/gin"
 	"github.com/hackbeex/configcenter/local"
 	"github.com/hackbeex/configcenter/util/log"
-	"github.com/valyala/fasthttp"
-	"github.com/valyala/fasthttp/reuseport"
 	"os"
 )
 
+var table *Table
+
 func Run() {
-	table := initTable()
-	go runServer(table)
+	table = initTable()
+	go runServer()
 }
 
-func runServer(table *Table) {
-	var srv *fasthttp.Server
+func runServer() {
+	r := gin.Default()
+
+	//route
+	r.POST("/api/v1/server/register")
+	r.POST("/api/v1/server/heartbeat")
+	r.POST("/api/v1/server/fetch")
+	r.POST("/api/v1/client/register")
+	r.POST("/api/v1/client/heartbeat")
+	r.POST("/api/v1/client/fetch")
+	r.POST("/api/v1/portal/register")
+	r.POST("/api/v1/portal/heartbeat")
+	r.POST("/api/v1/config/fetch")
 
 	conf := local.Conf.Discover
-	srv = &fasthttp.Server{
-		Handler:            serverHandler(table),
-		Name:               conf.Name,
-		Concurrency:        conf.Concurrency,
-		ReadBufferSize:     conf.ReadBufferSize,
-		WriteBufferSize:    conf.WriteBufferSize,
-		DisableKeepalive:   conf.DisabledKeepAlive,
-		ReduceMemoryUsage:  conf.ReduceMemoryUsage,
-		MaxRequestBodySize: conf.MaxRequestBodySize,
-	}
+	addr := fmt.Sprintf("%s:%d", conf.ListenHost, conf.ListenPort)
+	log.Infof("config server run at: %s", addr)
 
-	host := fmt.Sprintf("%s:%d", conf.ListenHost, conf.ListenPort)
-	log.Infof("config server start at: %s", host)
-	listener, err := reuseport.Listen("tcp4", host)
-	err = srv.Serve(listener)
-	if err != nil {
+	if err := r.Run(addr); err != nil {
 		log.Error(err)
 		os.Exit(-1)
 	}
 }
 
-func serverHandler(table *Table) fasthttp.RequestHandler {
-	return func(ctx *fasthttp.RequestCtx) {
-
-	}
+func GetTable() *Table {
+	return table
 }

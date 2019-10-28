@@ -4,15 +4,6 @@ Discover:
   ListenHost: "0.0.0.0"
   ListenPort: 9310
 
-  # entries below will influence server performance, should be keep on default value
-  # unless you knew about it
-  Concurrency: 262144
-  DisabledKeepAlive: false
-  ReadBufferSize: 8192
-  WriteBufferSize: 8192
-  MaxRequestBodySize: 20971520
-  ReduceMemoryUsage: false
-
   # Etcd config
   Etcd:
     name: "config-etcd"

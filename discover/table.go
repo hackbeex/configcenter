@@ -13,9 +13,10 @@ import (
 )
 
 type Table struct {
-	Version string
-	Servers *server.Table
-	Clients *client.Table
+	version string
+
+	servers *server.Table
+	clients *client.Table
 
 	etcd *clientv3.Client
 }
@@ -59,7 +60,7 @@ func ConnectToEtcd() *clientv3.Client {
 
 func initTable() *Table {
 	table := &Table{
-		Version: "1.0.0",
+		version: "1.0.0",
 		etcd:    ConnectToEtcd(),
 	}
 
@@ -75,7 +76,7 @@ func (t *Table) initConfigClients() {
 		log.Error(err)
 		os.Exit(-1)
 	}
-	t.Clients = client.NewTable()
+	t.clients = client.NewTable()
 	for _, kv := range resp.Kvs {
 		key := bytes.TrimPrefix(kv.Key, []byte(KeyConfigClientInstantPrefix))
 		segments := bytes.Split(key, []byte(Slash))
@@ -86,12 +87,12 @@ func (t *Table) initConfigClients() {
 		id := client.AppIdKey(segments[0])
 		attr := string(segments[1])
 
-		instance, ok := t.Clients.Load(id)
+		instance, ok := t.clients.Load(id)
 		if !ok {
 			instance = &client.Client{
 				AppId: string(id),
 			}
-			t.Clients.Store(id, instance)
+			t.clients.Store(id, instance)
 		}
 
 		switch attr {
@@ -113,7 +114,7 @@ func (t *Table) initConfigServers() {
 		log.Error(err)
 		os.Exit(-1)
 	}
-	t.Servers = server.NewTable()
+	t.servers = server.NewTable()
 	for _, kv := range resp.Kvs {
 		key := bytes.TrimPrefix(kv.Key, []byte(KeyConfigServerInstantPrefix))
 		segments := bytes.Split(key, []byte(Slash))
@@ -124,12 +125,12 @@ func (t *Table) initConfigServers() {
 		id := server.IdKey(segments[0])
 		attr := string(segments[1])
 
-		instance, ok := t.Servers.Load(id)
+		instance, ok := t.servers.Load(id)
 		if !ok {
 			instance = &server.Server{
 				Id: string(id),
 			}
-			t.Servers.Store(id, instance)
+			t.servers.Store(id, instance)
 		}
 
 		switch attr {
@@ -143,4 +144,8 @@ func (t *Table) initConfigServers() {
 			log.Warn("invalid attr in server: ", attr)
 		}
 	}
+}
+
+func (t *Table) Version() string {
+	return t.version
 }
