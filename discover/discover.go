@@ -3,6 +3,7 @@ package discover
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/hackbeex/configcenter/discover/handler"
 	"github.com/hackbeex/configcenter/local"
 	"github.com/hackbeex/configcenter/util/log"
 	"os"
@@ -18,16 +19,14 @@ func Run() {
 func runServer() {
 	r := gin.Default()
 
-	//route
-	r.POST("/api/v1/server/register")
-	r.POST("/api/v1/server/heartbeat")
-	r.POST("/api/v1/server/fetch")
-	r.POST("/api/v1/client/register")
-	r.POST("/api/v1/client/heartbeat")
-	r.POST("/api/v1/client/fetch")
-	r.POST("/api/v1/portal/register")
-	r.POST("/api/v1/portal/heartbeat")
-	r.POST("/api/v1/config/fetch")
+	r.POST("/api/v1/discover/server/register", handler.ServerRegister)
+	r.POST("/api/v1/discover/server/heartbeat", handler.ServerHeartbeat)
+	r.POST("/api/v1/discover/server/fetch", handler.ServerFetch)
+	r.POST("/api/v1/discover/client/register", handler.ClientRegister)
+	r.POST("/api/v1/discover/client/heartbeat", handler.ClientHeartbeat)
+	r.POST("/api/v1/discover/client/fetch", handler.ClientFetch)
+	r.POST("/api/v1/discover/portal/register", handler.PortalRegister)
+	r.POST("/api/v1/discover/portal/heartbeat", handler.PortalHeartbeat)
 
 	conf := local.Conf.Discover
 	addr := fmt.Sprintf("%s:%d", conf.ListenHost, conf.ListenPort)

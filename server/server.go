@@ -1,5 +1,7 @@
 package server
 
+import "github.com/coreos/etcd/clientv3"
+
 type EnvType string
 
 const (
@@ -13,4 +15,9 @@ type Server struct {
 	Host string
 	Port int
 	Env  EnvType
+}
+
+func (s *Server) Register(etcd *clientv3.Client) error {
+
+	return nil
 }

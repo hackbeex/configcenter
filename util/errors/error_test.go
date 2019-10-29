@@ -26,4 +26,6 @@ func TestErrors(t *testing.T) {
 	err5 := errors.WithMessage(err, "msg test") //not need :, no stack
 	fmt.Printf("err5: %s\n", err5)
 	fmt.Printf("err5: %+v\n", err5)
+
+	errors.Cause()
 }
