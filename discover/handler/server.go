@@ -2,7 +2,8 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/hackbeex/configcenter/server"
+	"github.com/hackbeex/configcenter/discover"
+	"github.com/hackbeex/configcenter/discover/server"
 	"github.com/hackbeex/configcenter/util/response"
 )
 
@@ -24,7 +25,7 @@ func ServerRegister(c *gin.Context) {
 		Port: req.Port,
 		Env:  req.Env,
 	}
-	if err := svr.Register(); err != nil {
+	if err := svr.Register(discover.GetStore()); err != nil {
 		response.JSON(c, nil, err)
 		return
 	}

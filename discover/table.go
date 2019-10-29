@@ -1,14 +1,13 @@
 package discover
 
 import (
-	"bytes"
 	"github.com/coreos/etcd/clientv3"
-	"github.com/hackbeex/configcenter/client"
+	"github.com/hackbeex/configcenter/discover/client"
+	"github.com/hackbeex/configcenter/discover/server"
+	"github.com/hackbeex/configcenter/discover/store"
 	"github.com/hackbeex/configcenter/local"
-	"github.com/hackbeex/configcenter/server"
 	"github.com/hackbeex/configcenter/util/log"
 	"os"
-	"strconv"
 	"time"
 )
 
@@ -18,26 +17,10 @@ type Table struct {
 	servers *server.Table
 	clients *client.Table
 
-	etcd *clientv3.Client
+	store *store.Store
 }
 
-const (
-	Slash = "/"
-
-	KeyConfigClientAppIdPrefix   = "/config-client/app-id/"
-	KeyConfigClientInstantPrefix = "/config-client/instance/"
-	KeyConfigClientAttrCluster   = "cluster"
-	KeyConfigClientAttrHost      = "host"
-	KeyConfigClientAttrPost      = "post"
-
-	KeyConfigServerIdPrefix      = "/config-server/id/"
-	KeyConfigServerInstantPrefix = "/config-server/instance/"
-	KeyConfigServerAttrEnv       = "env"
-	KeyConfigServerAttrHost      = "host"
-	KeyConfigServerAttrPost      = "post"
-)
-
-func ConnectToEtcd() *clientv3.Client {
+func connectToEtcd() *clientv3.Client {
 	config := local.Conf.Discover.Etcd
 
 	cli, err := clientv3.New(
@@ -59,93 +42,20 @@ func ConnectToEtcd() *clientv3.Client {
 }
 
 func initTable() *Table {
+	sto := store.New(connectToEtcd())
 	table := &Table{
 		version: "1.0.0",
-		etcd:    ConnectToEtcd(),
+		store:   sto,
+		servers: server.InitTable(sto),
+		clients: client.InitTable(sto),
 	}
-
-	table.initConfigClients()
-	table.initConfigServers()
-
 	return table
-}
-
-func (t *Table) initConfigClients() {
-	resp, err := t.getKeyValueWithPrefix(KeyConfigClientInstantPrefix)
-	if err != nil {
-		log.Error(err)
-		os.Exit(-1)
-	}
-	t.clients = client.NewTable()
-	for _, kv := range resp.Kvs {
-		key := bytes.TrimPrefix(kv.Key, []byte(KeyConfigClientInstantPrefix))
-		segments := bytes.Split(key, []byte(Slash))
-		if len(segments) != 2 {
-			log.Warnf("invalid config client definition: %s", string(kv.Key))
-			continue
-		}
-		id := client.AppIdKey(segments[0])
-		attr := string(segments[1])
-
-		instance, ok := t.clients.Load(id)
-		if !ok {
-			instance = &client.Client{
-				AppId: string(id),
-			}
-			t.clients.Store(id, instance)
-		}
-
-		switch attr {
-		case KeyConfigClientAttrCluster:
-			instance.Cluster = attr
-		case KeyConfigClientAttrHost:
-			instance.Host = attr
-		case KeyConfigClientAttrPost:
-			instance.Port, _ = strconv.Atoi(attr)
-		default:
-			log.Warn("invalid attr in client: ", attr)
-		}
-	}
-}
-
-func (t *Table) initConfigServers() {
-	resp, err := t.getKeyValueWithPrefix(KeyConfigServerInstantPrefix)
-	if err != nil {
-		log.Error(err)
-		os.Exit(-1)
-	}
-	t.servers = server.NewTable()
-	for _, kv := range resp.Kvs {
-		key := bytes.TrimPrefix(kv.Key, []byte(KeyConfigServerInstantPrefix))
-		segments := bytes.Split(key, []byte(Slash))
-		if len(segments) != 2 {
-			log.Warnf("invalid config server definition: %s", string(kv.Key))
-			continue
-		}
-		id := server.IdKey(segments[0])
-		attr := string(segments[1])
-
-		instance, ok := t.servers.Load(id)
-		if !ok {
-			instance = &server.Server{
-				Id: string(id),
-			}
-			t.servers.Store(id, instance)
-		}
-
-		switch attr {
-		case KeyConfigServerAttrEnv:
-			instance.Env = server.EnvType(attr)
-		case KeyConfigServerAttrHost:
-			instance.Host = attr
-		case KeyConfigServerAttrPost:
-			instance.Port, _ = strconv.Atoi(attr)
-		default:
-			log.Warn("invalid attr in server: ", attr)
-		}
-	}
 }
 
 func (t *Table) Version() string {
 	return t.version
+}
+
+func (t *Table) GetStore() *store.Store {
+	return t.store
 }

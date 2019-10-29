@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 	"github.com/hackbeex/configcenter/discover"
+	"github.com/hackbeex/configcenter/discover/server"
 	"github.com/hackbeex/configcenter/local"
-	"github.com/hackbeex/configcenter/server"
 	"github.com/hackbeex/configcenter/util/log"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/reuseport"

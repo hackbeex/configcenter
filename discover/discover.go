@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/hackbeex/configcenter/discover/handler"
+	"github.com/hackbeex/configcenter/discover/store"
 	"github.com/hackbeex/configcenter/local"
 	"github.com/hackbeex/configcenter/util/log"
 	"os"
@@ -40,4 +41,8 @@ func runServer() {
 
 func GetTable() *Table {
 	return table
+}
+
+func GetStore() *store.Store {
+	return table.GetStore()
 }
