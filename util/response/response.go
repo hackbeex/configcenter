@@ -27,3 +27,15 @@ func JSON(c *gin.Context, data interface{}, err error) {
 		Data:    data,
 	})
 }
+
+func Error(c *gin.Context, err error) {
+	JSON(c, nil, err)
+}
+
+func OK(c *gin.Context) {
+	JSON(c, nil, nil)
+}
+
+func Data(c *gin.Context, data interface{}) {
+	JSON(c, data, nil)
+}

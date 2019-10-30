@@ -7,7 +7,6 @@ import (
 	"github.com/hackbeex/configcenter/discover/store"
 	"github.com/hackbeex/configcenter/local"
 	"github.com/hackbeex/configcenter/util/log"
-	"os"
 	"time"
 )
 
@@ -23,7 +22,7 @@ type Table struct {
 func connectToEtcd() *clientv3.Client {
 	config := local.Conf.Discover.Etcd
 
-	cli, err := clientv3.New(
+	clt, err := clientv3.New(
 		clientv3.Config{
 			Endpoints:            config.Endpoints,
 			AutoSyncInterval:     time.Duration(config.AutoSyncInterval) * time.Second,
@@ -35,10 +34,9 @@ func connectToEtcd() *clientv3.Client {
 		},
 	)
 	if err != nil {
-		log.Error(err)
-		os.Exit(-1)
+		log.Panic(err)
 	}
-	return cli
+	return clt
 }
 
 func initTable() *Table {
@@ -58,4 +56,12 @@ func (t *Table) Version() string {
 
 func (t *Table) GetStore() *store.Store {
 	return t.store
+}
+
+func (t *Table) Servers() *server.Table {
+	return t.servers
+}
+
+func (t *Table) Clients() *client.Table {
+	return t.clients
 }

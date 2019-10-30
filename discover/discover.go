@@ -7,7 +7,6 @@ import (
 	"github.com/hackbeex/configcenter/discover/store"
 	"github.com/hackbeex/configcenter/local"
 	"github.com/hackbeex/configcenter/util/log"
-	"os"
 )
 
 var table *Table
@@ -34,8 +33,7 @@ func runServer() {
 	log.Infof("config server run at: %s", addr)
 
 	if err := r.Run(addr); err != nil {
-		log.Error(err)
-		os.Exit(-1)
+		log.Panic(err)
 	}
 }
 

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"github.com/hackbeex/configcenter/discover/store"
 	"github.com/hackbeex/configcenter/util/log"
-	"os"
 	"strconv"
 	"sync"
 )
@@ -46,14 +45,13 @@ func (t *Table) LoadOrStore(key AppIdKey, val *Client) (*Client, bool) {
 }
 
 func InitTable(store *store.Store) *Table {
-	resp, err := store.GetKeyValueWithPrefix(KeyConfigClientInstantPrefix)
+	resp, err := store.GetKeyValueWithPrefix(KeyClientInstantPrefix)
 	if err != nil {
-		log.Error(err)
-		os.Exit(-1)
+		log.Panic(err)
 	}
 	clients := NewTable()
 	for _, kv := range resp.Kvs {
-		key := bytes.TrimPrefix(kv.Key, []byte(KeyConfigClientInstantPrefix))
+		key := bytes.TrimPrefix(kv.Key, []byte(KeyClientInstantPrefix))
 		segments := bytes.Split(key, []byte("/"))
 		if len(segments) != 2 {
 			log.Warnf("invalid config client definition: %s", string(kv.Key))
@@ -71,11 +69,11 @@ func InitTable(store *store.Store) *Table {
 		}
 
 		switch attr {
-		case KeyConfigClientAttrCluster:
+		case KeyClientAttrCluster:
 			instance.Cluster = attr
-		case KeyConfigClientAttrHost:
+		case KeyClientAttrHost:
 			instance.Host = attr
-		case KeyConfigClientAttrPost:
+		case KeyClientAttrPost:
 			instance.Port, _ = strconv.Atoi(attr)
 		default:
 			log.Warn("invalid attr in client: ", attr)

@@ -3,12 +3,11 @@ package main
 import (
 	"fmt"
 	"github.com/hackbeex/configcenter/discover"
-	"github.com/hackbeex/configcenter/discover/server"
 	"github.com/hackbeex/configcenter/local"
+	"github.com/hackbeex/configcenter/server"
 	"github.com/hackbeex/configcenter/util/log"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/reuseport"
-	"os"
 )
 
 func init() {
@@ -38,7 +37,6 @@ func main() {
 	listener, err := reuseport.Listen("tcp4", host)
 	err = srv.Serve(listener)
 	if err != nil {
-		log.Error(err)
-		os.Exit(-1)
+		log.Panic(err)
 	}
 }

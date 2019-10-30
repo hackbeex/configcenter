@@ -1,15 +1,20 @@
 package server
 
 import (
+	"fmt"
+	"github.com/hackbeex/configcenter/discover/com"
 	"github.com/hackbeex/configcenter/discover/store"
+	"github.com/hackbeex/configcenter/util/log"
+	"github.com/pkg/errors"
 )
 
 const (
-	KeyConfigServerIdPrefix      = "/config-server/id/"
-	KeyConfigServerInstantPrefix = "/config-server/instance/"
-	KeyConfigServerAttrEnv       = "env"
-	KeyConfigServerAttrHost      = "host"
-	KeyConfigServerAttrPost      = "post"
+	KeyServerIdPrefix      = "/config-server/id/"
+	KeyServerInstantPrefix = "/config-server/instance/"
+	KeyServerAttrEnv       = "env"
+	KeyServerAttrHost      = "host"
+	KeyServerAttrPost      = "post"
+	KeyServerAttrStatus    = "status"
 )
 
 type EnvType string
@@ -21,13 +26,31 @@ const (
 )
 
 type Server struct {
-	Id   string
-	Host string
-	Port int
-	Env  EnvType
+	Id     string
+	Host   string
+	Port   int
+	Env    EnvType
+	Status com.RunStatus
 }
 
 func (s *Server) Register(store *store.Store) error {
+	if s.Id == "" {
+		err := errors.New("server id require")
+		log.Error(err)
+		return err
+	}
 
+	prefix := KeyServerInstantPrefix + s.Id + "/"
+	kvs := map[string]string{
+		KeyServerIdPrefix + s.Id:   s.Id,
+		prefix + KeyServerAttrHost: s.Host,
+		prefix + KeyServerAttrPost: fmt.Sprintf("%d", s.Port),
+		prefix + KeyServerAttrEnv:  string(s.Env),
+	}
+
+	if err := store.PutKeyValues(kvs); err != nil {
+		log.Error(err)
+		return err
+	}
 	return nil
 }

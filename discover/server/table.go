@@ -2,9 +2,10 @@ package server
 
 import (
 	"bytes"
+	"github.com/hackbeex/configcenter/discover/com"
 	"github.com/hackbeex/configcenter/discover/store"
 	"github.com/hackbeex/configcenter/util/log"
-	"os"
+	"github.com/pkg/errors"
 	"strconv"
 	"sync"
 )
@@ -13,11 +14,13 @@ type IdKey string
 
 type Table struct {
 	table sync.Map
+	store *store.Store
 }
 
-func NewTable() *Table {
+func NewTable(store *store.Store) *Table {
 	return &Table{
 		table: sync.Map{},
+		store: store,
 	}
 }
 
@@ -46,14 +49,13 @@ func (t *Table) LoadOrStore(key IdKey, val *Server) (*Server, bool) {
 }
 
 func InitTable(store *store.Store) *Table {
-	resp, err := store.GetKeyValueWithPrefix(KeyConfigServerInstantPrefix)
+	resp, err := store.GetKeyValueWithPrefix(KeyServerInstantPrefix)
 	if err != nil {
-		log.Error(err)
-		os.Exit(-1)
+		log.Panic(err)
 	}
-	servers := NewTable()
+	servers := NewTable(store)
 	for _, kv := range resp.Kvs {
-		key := bytes.TrimPrefix(kv.Key, []byte(KeyConfigServerInstantPrefix))
+		key := bytes.TrimPrefix(kv.Key, []byte(KeyServerInstantPrefix))
 		segments := bytes.Split(key, []byte("/"))
 		if len(segments) != 2 {
 			log.Warnf("invalid config server definition: %s", string(kv.Key))
@@ -71,15 +73,46 @@ func InitTable(store *store.Store) *Table {
 		}
 
 		switch attr {
-		case KeyConfigServerAttrEnv:
+		case KeyServerAttrEnv:
 			instance.Env = EnvType(attr)
-		case KeyConfigServerAttrHost:
+		case KeyServerAttrHost:
 			instance.Host = attr
-		case KeyConfigServerAttrPost:
+		case KeyServerAttrPost:
 			instance.Port, _ = strconv.Atoi(attr)
 		default:
 			log.Warn("invalid attr in server: ", attr)
 		}
 	}
 	return servers
+}
+
+func (t *Table) UpdateStatus(key IdKey, status com.RunStatus) error {
+	server, ok := t.Load(key)
+	if !ok {
+		err := errors.Errorf("server not exist: %s", key)
+		log.Error(err)
+		return err
+	}
+	if server.Status == status {
+		return nil
+	}
+
+	k := KeyServerInstantPrefix + key + "/" + KeyServerAttrStatus
+	_, err := t.store.PutKeyValue(string(k), string(com.OnlineStatus))
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+
+	server.Status = status
+	return nil
+}
+
+func (t *Table) FetchServerList() ([]Server, error) {
+	var list = make([]Server, 0)
+	t.Range(func(key IdKey, val *Server) bool {
+		list = append(list, *val)
+		return true
+	})
+	return list, nil
 }
