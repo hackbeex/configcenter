@@ -13,7 +13,7 @@ var table *Table
 
 func Run() {
 	table = initTable()
-	go runServer()
+	runServer()
 }
 
 func runServer() {
@@ -30,7 +30,7 @@ func runServer() {
 
 	conf := local.Conf.Discover
 	addr := fmt.Sprintf("%s:%d", conf.ListenHost, conf.ListenPort)
-	log.Infof("config server run at: %s", addr)
+	log.Infof("discover server run at: %s", addr)
 
 	if err := r.Run(addr); err != nil {
 		log.Panic(err)
