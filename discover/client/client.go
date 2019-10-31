@@ -2,6 +2,7 @@ package client
 
 import (
 	"fmt"
+	"github.com/hackbeex/configcenter/discover/com"
 	"github.com/hackbeex/configcenter/discover/store"
 	"github.com/hackbeex/configcenter/util/log"
 	"github.com/pkg/errors"
@@ -13,6 +14,7 @@ const (
 	KeyClientAttrCluster   = "cluster"
 	KeyClientAttrHost      = "host"
 	KeyClientAttrPost      = "post"
+	KeyClientAttrEnv       = "env"
 	KeyClientAttrStatus    = "status"
 )
 
@@ -21,6 +23,8 @@ type Client struct {
 	Cluster string
 	Host    string
 	Port    int
+	Env     com.EnvType
+	Status  com.RunStatus
 }
 
 func (c *Client) Register(store *store.Store) error {
@@ -36,6 +40,7 @@ func (c *Client) Register(store *store.Store) error {
 		prefix + KeyClientAttrHost:     c.Host,
 		prefix + KeyClientAttrPost:     fmt.Sprintf("%d", c.Port),
 		prefix + KeyClientAttrCluster:  c.Cluster,
+		prefix + KeyClientAttrEnv:      string(c.Env),
 	}
 
 	if err := store.PutKeyValues(kvs); err != nil {

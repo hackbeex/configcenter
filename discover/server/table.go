@@ -74,11 +74,13 @@ func InitTable(store *store.Store) *Table {
 
 		switch attr {
 		case KeyServerAttrEnv:
-			instance.Env = EnvType(attr)
+			instance.Env = com.EnvType(attr)
 		case KeyServerAttrHost:
 			instance.Host = attr
 		case KeyServerAttrPost:
 			instance.Port, _ = strconv.Atoi(attr)
+		case KeyServerAttrStatus:
+			instance.Status = com.RunStatus(attr)
 		default:
 			log.Warn("invalid attr in server: ", attr)
 		}

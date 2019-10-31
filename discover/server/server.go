@@ -17,19 +17,11 @@ const (
 	KeyServerAttrStatus    = "status"
 )
 
-type EnvType string
-
-const (
-	EnvDev  EnvType = "develop"
-	EnvProd EnvType = "product"
-	EnvTest EnvType = "test"
-)
-
 type Server struct {
 	Id     string
 	Host   string
 	Port   int
-	Env    EnvType
+	Env    com.EnvType
 	Status com.RunStatus
 }
 
