@@ -27,6 +27,7 @@ func runServer() {
 	r.POST("/api/vi/config/rollback")
 	r.POST("/api/vi/config/sync")
 	r.POST("/api/vi/config/history")
+	r.POST("/api/vi/config/notify")
 
 	conf := local.Conf.Server
 	addr := fmt.Sprintf("%s:%d", conf.ListenHost, conf.ListenPort)
