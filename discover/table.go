@@ -50,7 +50,7 @@ func initTable() *Table {
 		clients: clients,
 	}
 
-	table.watch(watcher.NewClientWatcher(clients))
+	go table.watch(watcher.NewClientWatcher(clients))
 
 	return table
 }

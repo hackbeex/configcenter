@@ -10,10 +10,10 @@ import (
 
 func ServerRegister(c *gin.Context) {
 	var req struct {
-		Id   string
-		Host string
-		Port int
-		Env  server.EnvType
+		Id   string      `json:"id"`
+		Host string      `json:"host"`
+		Port int         `json:"port"`
+		Env  com.EnvType `json:"env"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, err)
