@@ -5,6 +5,7 @@ import (
 	"github.com/hackbeex/configcenter/discover/client"
 	"github.com/hackbeex/configcenter/discover/server"
 	"github.com/hackbeex/configcenter/discover/store"
+	"github.com/hackbeex/configcenter/discover/watcher"
 	"github.com/hackbeex/configcenter/local"
 	"github.com/hackbeex/configcenter/util/log"
 	"time"
@@ -41,12 +42,16 @@ func connectToEtcd() *clientv3.Client {
 
 func initTable() *Table {
 	sto := store.New(connectToEtcd())
+	clients := client.InitTable(sto)
 	table := &Table{
 		version: "1.0.0",
 		store:   sto,
 		servers: server.InitTable(sto),
-		clients: client.InitTable(sto),
+		clients: clients,
 	}
+
+	table.watch(watcher.NewClientWatcher(clients))
+
 	return table
 }
 

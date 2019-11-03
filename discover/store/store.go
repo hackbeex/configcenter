@@ -75,3 +75,7 @@ func (s *Store) DeleteKeyValues(ks []string, opts ...clientv3.OpOption) error {
 	cancel()
 	return nil
 }
+
+func (s *Store) Watch(ctx context.Context, key string, opts ...clientv3.OpOption) clientv3.WatchChan {
+	return s.client.Watch(ctx, key, opts...)
+}

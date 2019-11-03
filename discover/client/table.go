@@ -90,6 +90,10 @@ func InitTable(store *store.Store) *Table {
 	return clients
 }
 
+func (t *Table) GetStore() *store.Store {
+	return t.store
+}
+
 func (t *Table) UpdateStatus(key AppIdKey, status com.RunStatus) error {
 	client, ok := t.Load(key)
 	if !ok {
@@ -119,4 +123,16 @@ func (t *Table) FetchClientList() ([]Client, error) {
 		return true
 	})
 	return list, nil
+}
+
+func (t *Table) RefreshClientById(key AppIdKey) error {
+	//todo
+
+	return nil
+}
+
+func (t *Table) DeleteClient(key AppIdKey) error {
+	//todo
+
+	return nil
 }
