@@ -32,3 +32,9 @@ Server:
   Name: "Config Server"
   ListenHost: "0.0.0.0"
   ListenPort: 9311
+
+  Mysql:
+    User: "root"
+    Password: "root"
+    Addr: "localhost:3306"
+    DBName: "cc_config"

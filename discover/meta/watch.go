@@ -1,4 +1,4 @@
-package discover
+package meta
 
 import (
 	"github.com/coreos/etcd/mvcc/mvccpb"

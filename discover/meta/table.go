@@ -1,4 +1,4 @@
-package discover
+package meta
 
 import (
 	"github.com/coreos/etcd/clientv3"
@@ -40,19 +40,27 @@ func connectToEtcd() *clientv3.Client {
 	return clt
 }
 
-func initTable() *Table {
+var tab *Table
+
+func InitTable() {
 	sto := store.New(connectToEtcd())
 	clients := client.InitTable(sto)
-	table := &Table{
+	tab = &Table{
 		version: "1.0.0",
 		store:   sto,
 		servers: server.InitTable(sto),
 		clients: clients,
 	}
 
-	go table.watch(watcher.NewClientWatcher(clients))
+	go tab.watch(watcher.NewClientWatcher(clients))
+}
 
-	return table
+func GetTable() *Table {
+	return tab
+}
+
+func GetStore() *store.Store {
+	return tab.GetStore()
 }
 
 func (t *Table) Version() string {

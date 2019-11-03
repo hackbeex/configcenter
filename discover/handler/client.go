@@ -2,9 +2,9 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/hackbeex/configcenter/discover"
 	"github.com/hackbeex/configcenter/discover/client"
 	"github.com/hackbeex/configcenter/discover/com"
+	"github.com/hackbeex/configcenter/discover/meta"
 	"github.com/hackbeex/configcenter/util/response"
 )
 
@@ -26,7 +26,7 @@ func ClientRegister(c *gin.Context) {
 		Port:    req.Port,
 		Cluster: req.Cluster,
 	}
-	if err := clt.Register(discover.GetStore()); err != nil {
+	if err := clt.Register(meta.GetStore()); err != nil {
 		response.JSON(c, nil, err)
 		return
 	}
@@ -42,7 +42,7 @@ func ClientHeartbeat(c *gin.Context) {
 		return
 	}
 
-	clients := discover.GetTable().Clients()
+	clients := meta.GetTable().Clients()
 	if err := clients.UpdateStatus(req.AppId, com.OnlineStatus); err != nil {
 		response.Error(c, err)
 		return
@@ -51,7 +51,7 @@ func ClientHeartbeat(c *gin.Context) {
 }
 
 func ClientFetch(c *gin.Context) {
-	clients := discover.GetTable().Clients()
+	clients := meta.GetTable().Clients()
 	res, err := clients.FetchClientList()
 	if err != nil {
 		response.Error(c, err)

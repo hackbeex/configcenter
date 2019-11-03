@@ -4,15 +4,13 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/hackbeex/configcenter/discover/handler"
-	"github.com/hackbeex/configcenter/discover/store"
+	"github.com/hackbeex/configcenter/discover/meta"
 	"github.com/hackbeex/configcenter/local"
 	"github.com/hackbeex/configcenter/util/log"
 )
 
-var table *Table
-
 func Run() {
-	table = initTable()
+	meta.InitTable()
 	runServer()
 }
 
@@ -35,12 +33,4 @@ func runServer() {
 	if err := r.Run(addr); err != nil {
 		log.Panic(err)
 	}
-}
-
-func GetTable() *Table {
-	return table
-}
-
-func GetStore() *store.Store {
-	return table.GetStore()
 }

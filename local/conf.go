@@ -35,6 +35,12 @@ type LocalConf struct {
 		Name       string `yaml:"Name"`
 		ListenHost string `yaml:"ListenHost"`
 		ListenPort int    `yaml:"ListenPort"`
+		Mysql      struct {
+			User     string `yaml:"User"`
+			Password string `yaml:"Password"`
+			Addr     string `yaml:"Addr"`
+			DBName   string `yaml:"DBName"`
+		} `yaml:"Mysql"`
 	} `yaml:"Server"`
 }
 

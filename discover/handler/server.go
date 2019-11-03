@@ -2,8 +2,8 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/hackbeex/configcenter/discover"
 	"github.com/hackbeex/configcenter/discover/com"
+	"github.com/hackbeex/configcenter/discover/meta"
 	"github.com/hackbeex/configcenter/discover/server"
 	"github.com/hackbeex/configcenter/util/response"
 )
@@ -26,7 +26,7 @@ func ServerRegister(c *gin.Context) {
 		Port: req.Port,
 		Env:  req.Env,
 	}
-	if err := svr.Register(discover.GetStore()); err != nil {
+	if err := svr.Register(meta.GetStore()); err != nil {
 		response.Error(c, err)
 		return
 	}
@@ -42,7 +42,7 @@ func ServerHeartbeat(c *gin.Context) {
 		return
 	}
 
-	servers := discover.GetTable().Servers()
+	servers := meta.GetTable().Servers()
 	if err := servers.UpdateStatus(req.Id, com.OnlineStatus); err != nil {
 		response.Error(c, err)
 		return
@@ -51,7 +51,7 @@ func ServerHeartbeat(c *gin.Context) {
 }
 
 func ServerFetch(c *gin.Context) {
-	servers := discover.GetTable().Servers()
+	servers := meta.GetTable().Servers()
 	res, err := servers.FetchServerList()
 	if err != nil {
 		response.Error(c, err)
