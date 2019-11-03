@@ -32,28 +32,3 @@ Server:
   Name: "Config Server"
   ListenHost: "0.0.0.0"
   ListenPort: 9311
-  ListenDomainName: []
-
-  # entries below will influence server performance, should be keep on default value
-  # unless you knew about it
-
-  # Max concurrent connections the server could deal with.
-  Concurrency: 262144
-
-  # Switch to disable/enable http 1.1 keep-alive support. If true, server will close the connection after
-  # send the first response
-  DisabledKeepAlive: false
-
-  # Buffer size for reading from request, meanwhile it will limit the request header length.
-  # Should be increased when the request has a larger header than default value
-  ReadBufferSize: 8192
-
-  # Buffer size for writing response
-  WriteBufferSize: 8192
-
-  # Max length of request body. Request will be rejected when request body larger than this value. (default value 20MB)
-  MaxRequestBodySize: 20971520
-
-  # Switch for reducing memory usage when exists too much keep-alive request. If true, instead of occupying memory,
-  # cpu-usage will increase
-  ReduceMemoryUsage: false

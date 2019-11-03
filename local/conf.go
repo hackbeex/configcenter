@@ -32,17 +32,9 @@ type LocalConf struct {
 	} `yaml:"Discover"`
 
 	Server struct {
-		Name             string   `yaml:"Name"`
-		ListenHost       string   `yaml:"ListenHost"`
-		ListenPort       int      `yaml:"ListenPort"`
-		ListenDomainName []string `yaml:"ListenDomainName"`
-
-		Concurrency        int  `yaml:"Concurrency"`
-		DisabledKeepAlive  bool `yaml:"DisabledKeepAlive"`
-		ReadBufferSize     int  `yaml:"ReadBufferSize"`
-		WriteBufferSize    int  `yaml:"WriteBufferSize"`
-		MaxRequestBodySize int  `yaml:"MaxRequestBodySize"`
-		ReduceMemoryUsage  bool `yaml:"ReduceMemoryUsage"`
+		Name       string `yaml:"Name"`
+		ListenHost string `yaml:"ListenHost"`
+		ListenPort int    `yaml:"ListenPort"`
 	} `yaml:"Server"`
 }
 
