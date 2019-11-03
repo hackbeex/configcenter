@@ -7,11 +7,37 @@ import (
 )
 
 func GetAppList(c *gin.Context) {
+	var req model.AppListReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, err)
+		return
+	}
 
+	app := model.AppModel{}
+	res, err := app.List(&req)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.Data(c, res)
 }
 
 func GetAppDetail(c *gin.Context) {
+	var req model.AppDetailReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, err)
+		return
+	}
 
+	app := model.AppModel{}
+	res, err := app.Detail(&req)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.Data(c, res)
 }
 
 func CreateApp(c *gin.Context) {
@@ -22,13 +48,11 @@ func CreateApp(c *gin.Context) {
 	}
 
 	app := model.AppModel{}
-	id, err := app.Create(&req)
+	res, err := app.Create(&req)
 	if err != nil {
 		response.Error(c, err)
 		return
 	}
 
-	response.Data(c, map[string]string{
-		"id": id,
-	})
+	response.Data(c, res)
 }
