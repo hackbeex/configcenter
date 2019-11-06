@@ -69,8 +69,8 @@ func (a *ClusterModel) Create(req *CreateClusterReq) (*CreateClusterResp, error)
 
 	now := time.Now().Unix()
 	id := uuid.NewV1().String()
-	db = database.Conn()
-	db = database.Insert(db, "cluster", map[string]interface{}{
+	tx := database.Conn().Begin()
+	tx = database.Insert(tx, "cluster", map[string]interface{}{
 		"id":          id,
 		"app_id":      req.AppId,
 		"name":        req.Name,
@@ -80,9 +80,13 @@ func (a *ClusterModel) Create(req *CreateClusterReq) (*CreateClusterResp, error)
 		"update_by":   req.UserId,
 		"update_time": now,
 	})
-	if db.Error != nil {
-		log.Error(db.Error)
-		return resp, errors.Wrap(db.Error, "db error")
+	tx = RecordTable(tx, "cluster", id, "", req.UserId, OpCreate)
+	if tx.Error != nil {
+		tx.Rollback()
+		log.Error(tx.Error)
+		return resp, errors.Wrap(tx.Error, "db error")
+	} else {
+		tx.Commit()
 	}
 
 	resp.Id = id

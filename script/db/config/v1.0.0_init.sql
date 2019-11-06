@@ -110,19 +110,14 @@ DROP TABLE IF EXISTS commit;
 
 CREATE TABLE commit (
   id CHAR(36) NOT NULL COMMENT '',
-  app_id CHAR(32) NOT NULL COMMENT '',
-  cluster_id CHAR(32) NOT NULL COMMENT '',
   namespace_id CHAR(32) NOT NULL COMMENT '',
   change_sets LONGTEXT NOT NULL COMMENT '',
-  comment VARCHAR(255) DEFAULT '' COMMENT '',
   is_delete TINYINT(1) NOT NULL DEFAULT 0 COMMENT '',
   create_by CHAR(32) NOT NULL COMMENT '',
   create_time INT NOT NULL COMMENT '',
   update_by CHAR(32) DEFAULT '' COMMENT '',
   update_time INT NULL COMMENT '',
   PRIMARY KEY (id),
-  KEY idx_app_id (app_id),
-  KEY idx_cluster_id (cluster_id),
   KEY idx_namespace_id (namespace_id),
   KEY idx_update_time (update_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='commit history';
@@ -190,6 +185,7 @@ CREATE TABLE item (
   update_time INT NULL COMMENT '',
   PRIMARY KEY (id),
   KEY idx_namespace_id (namespace_id),
+  KEY idx_key (`key`),
   KEY idx_update_time (update_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='config item';
 

@@ -70,8 +70,8 @@ func (a *NamespaceModel) Create(req *CreateNamespaceReq) (*CreateNamespaceResp, 
 
 	now := time.Now().Unix()
 	id := uuid.NewV1().String()
-	db = database.Conn()
-	db = database.Insert(db, "cluster", map[string]interface{}{
+	tx := database.Conn().Begin()
+	tx = database.Insert(tx, "namespace", map[string]interface{}{
 		"id":          id,
 		"app_id":      cluster.AppId,
 		"cluster_id":  req.ClusterId,
@@ -83,9 +83,13 @@ func (a *NamespaceModel) Create(req *CreateNamespaceReq) (*CreateNamespaceResp, 
 		"update_by":   req.UserId,
 		"update_time": now,
 	})
-	if db.Error != nil {
-		log.Error(db.Error)
-		return resp, errors.Wrap(db.Error, "db error")
+	tx = RecordTable(tx, "namespace", id, "", req.UserId, OpCreate)
+	if tx.Error != nil {
+		tx.Rollback()
+		log.Error(tx.Error)
+		return resp, errors.Wrap(tx.Error, "db error")
+	} else {
+		tx.Commit()
 	}
 
 	resp.Id = id

@@ -56,8 +56,8 @@ func (a *AppModel) Create(req *CreateAppReq) (*CreateAppResp, error) {
 
 	now := time.Now().Unix()
 	id := uuid.NewV1().String()
-	db = database.Conn()
-	db = database.Insert(db, "app", map[string]interface{}{
+	tx := database.Conn().Begin()
+	tx = database.Insert(tx, "app", map[string]interface{}{
 		"id":          id,
 		"appid":       req.Appid,
 		"name":        req.Name,
@@ -67,9 +67,13 @@ func (a *AppModel) Create(req *CreateAppReq) (*CreateAppResp, error) {
 		"update_by":   req.UserId,
 		"update_time": now,
 	})
-	if db.Error != nil {
-		log.Error(db.Error)
-		return resp, errors.Wrap(db.Error, "db error")
+	tx = RecordTable(tx, "app", id, "", req.UserId, OpCreate)
+	if tx.Error != nil {
+		tx.Rollback()
+		log.Error(tx.Error)
+		return resp, errors.Wrap(tx.Error, "db error")
+	} else {
+		tx.Commit()
 	}
 
 	resp.Id = id

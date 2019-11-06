@@ -52,7 +52,7 @@ func runServer() {
 	r.POST("/api/v1/cluster/create", handler.CreateCluster)
 	r.POST("/api/v1/namespace/create", handler.CreateNamespace)
 	r.POST("/api/vi/config/detail", handler.GetConfigDetail)
-	r.POST("/api/vi/config/commit", handler.CommitConfig)
+	r.POST("/api/vi/config/create", handler.CreateConfig)
 	r.POST("/api/vi/config/update", handler.UpdateConfig)
 	r.POST("/api/vi/config/delete", handler.DeleteConfig)
 	r.POST("/api/vi/config/release", handler.ReleaseConfig)
