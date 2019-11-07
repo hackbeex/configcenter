@@ -111,7 +111,8 @@ type AppListResp struct {
 
 func (a *AppModel) List(req *AppListReq) (*AppListResp, error) {
 	resp := &AppListResp{
-		List: []AppItem{},
+		List:   []AppItem{},
+		Offset: -1,
 	}
 
 	if err := req.Validate(); err != nil {

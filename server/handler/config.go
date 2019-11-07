@@ -23,6 +23,23 @@ func GetConfigDetail(c *gin.Context) {
 	response.Data(c, res)
 }
 
+func GetConfigList(c *gin.Context) {
+	var req model.ConfigListReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	config := model.ConfigModel{}
+	res, err := config.List(&req)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.Data(c, res)
+}
+
 func CreateConfig(c *gin.Context) {
 	var req model.CreateConfigReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -74,8 +91,55 @@ func DeleteConfig(c *gin.Context) {
 	response.OK(c)
 }
 
-func ReleaseConfig(c *gin.Context) {
+func GetConfigHistory(c *gin.Context) {
+	var req model.ConfigHistoryReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, err)
+		return
+	}
 
+	config := model.ConfigModel{}
+	res, err := config.GetHistory(&req)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.Data(c, res)
+}
+
+func ReleaseConfig(c *gin.Context) {
+	var req model.ReleaseConfigReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	config := model.ConfigModel{}
+	err := config.Release(&req)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.OK(c)
+}
+
+func GetConfigReleaseHistory(c *gin.Context) {
+	var req model.ConfigReleaseHistoryReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	config := model.ConfigModel{}
+	res, err := config.GetReleaseHistory(&req)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.Data(c, res)
 }
 
 func RollbackConfig(c *gin.Context) {
@@ -83,10 +147,6 @@ func RollbackConfig(c *gin.Context) {
 }
 
 func SyncConfig(c *gin.Context) {
-
-}
-
-func GetConfigHistory(c *gin.Context) {
 
 }
 

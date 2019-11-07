@@ -211,7 +211,7 @@ CREATE TABLE `release` (
   update_by CHAR(32) DEFAULT '' COMMENT '',
   update_time INT NULL COMMENT '',
   PRIMARY KEY (id),
-  KEY idx_group (app_id,cluster_id,namespace_id),
+  KEY idx_namespace_id (namespace_id),
   KEY idx_update_time (update_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='';
 
@@ -235,8 +235,9 @@ CREATE TABLE release_history (
   update_by CHAR(32) DEFAULT '' COMMENT '',
   update_time INT NULL COMMENT '',
   PRIMARY KEY (id),
-  KEY idx_group (app_id,cluster_id,namespace_id),
+  KEY idx_namespace_id (namespace_id),
   KEY idx_release_id (release_id),
+  KEY idx_pre_release_id (pre_release_id),
   KEY idx_update_time (update_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='';
 
