@@ -104,8 +104,10 @@ func (c *ConfigModel) List(req *ConfigListReq) (*ConfigListResp, error) {
 		Config     []byte
 	}
 	db := database.Conn()
-	db = db.Table("release").Select("config,update_time").Where("namespace_id=? AND is_delete=0", req.NamespaceId).
-		Order("update_time DESC").Limit(1).Scan(&release)
+	db = db.Table("release_history t1").Select("t2.config,t1.update_time").
+		Joins("release t2 ON t1.release_id=t2.id AND t2.is_delete=0").
+		Where("t1.namespace_id=? AND op_type=? AND t1.is_delete=0", req.NamespaceId, ReleaseOpNormal).
+		Order("t1.update_time DESC").Limit(1).Scan(&release)
 	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
 		log.Error(db.Error)
 		return resp, errors.Wrap(db.Error, "db error")
@@ -144,7 +146,7 @@ func (c *ConfigModel) List(req *ConfigListReq) (*ConfigListResp, error) {
 				item.Status = OpUpdate
 			}
 		} else if item.IsDelete == 1 {
-			continue //unreleased item did't need to show
+			continue //unreleased item do not need to show
 		} else {
 			item.Status = OpCreate
 		}
@@ -530,12 +532,12 @@ func (c *ConfigModel) Release(req *ReleaseConfigReq) error {
 		return errors.New("the namespace not exists")
 	}
 
-	var preRelease struct {
-		Id string
+	var lastHistory struct {
+		ReleaseId string
 	}
 	db = database.Conn()
-	db = db.Table("release").Select("id").Where("namespace_id=? AND is_delete=0", req.NamespaceId).
-		Order("update_time DESC").Limit(1).Scan(&preRelease)
+	db = db.Table("release_history").Select("release_id").Where("namespace_id=? AND is_delete=0", req.NamespaceId).
+		Order("update_time DESC").Limit(1).Scan(&lastHistory)
 	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
 		log.Error(db.Error)
 		return errors.Wrap(db.Error, "db error")
@@ -583,7 +585,7 @@ func (c *ConfigModel) Release(req *ReleaseConfigReq) error {
 		"namespace_id":   req.NamespaceId,
 		"cluster_id":     namespace.ClusterId,
 		"release_id":     id,
-		"pre_release_id": preRelease.Id,
+		"pre_release_id": lastHistory.ReleaseId,
 		"op_type":        ReleaseOpNormal,
 		"create_by":      req.UserId,
 		"create_time":    now,
@@ -767,4 +769,148 @@ func (c *ConfigModel) GetReleaseHistory(req *ConfigReleaseHistoryReq) (*ConfigRe
 	}
 
 	return resp, nil
+}
+
+type RollbackConfigReq struct {
+	NamespaceId string `json:"namespace_id"`
+	UserId      string `json:"user_id"`
+}
+
+func (c *RollbackConfigReq) Validate() error {
+	return validation.ValidateStruct(&c,
+		validation.Field(&c.NamespaceId, validation.Required, validation.Length(32, 32)),
+		validation.Field(&c.UserId, validation.Required, validation.Length(32, 32)),
+	)
+}
+
+//rollback is not a type of release, after rollback need to release manually
+func (c *ConfigModel) Rollback(req *RollbackConfigReq) error {
+	if err := req.Validate(); err != nil {
+		log.Warn(err)
+		return err
+	}
+
+	var namespace struct {
+		Id        string
+		AppId     string
+		ClusterId string
+	}
+	db := database.Conn()
+	db = db.Table("namespace").Select("id,app_id,cluster_id").Where("id=? AND is_delete=0", req.NamespaceId).Scan(&namespace)
+	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
+		log.Error(db.Error)
+		return errors.Wrap(db.Error, "db error")
+	}
+	if namespace.Id == "" {
+		return errors.New("the namespace not exists")
+	}
+
+	// get last valid history which can rollback
+	var lastHistory struct {
+		ReleaseId    string
+		PreReleaseId string
+	}
+	db = database.Conn()
+	db = db.Table("release_history t1").Select("t1.release_id,t2.pre_release_id").
+		Joins("JOIN release_history t2 ON t1.release_id=t2.release_id AND t2.op_type=? AND t2.is_delete=0", ReleaseOpNormal).
+		Where("t1.namespace_id=? AND t1.is_delete=0", req.NamespaceId).
+		Order("t1.update_time DESC").Limit(1).Scan(&lastHistory)
+	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
+		log.Error(db.Error)
+		return errors.Wrap(db.Error, "db error")
+	}
+	if lastHistory.PreReleaseId == "" {
+		return errors.New("the config is the first version, can not rollback anymore")
+	}
+
+	//get history config to rollback
+	var backRelease struct {
+		Config []byte
+	}
+	db = database.Conn()
+	db = db.Table("release").Select("config").Where("id=?", lastHistory.PreReleaseId).Scan(&backRelease)
+	if db.Error != nil {
+		log.Error(db.Error)
+		return errors.Wrap(db.Error, "db error")
+	}
+	var config map[string]string
+	if err := json.Unmarshal(backRelease.Config, &config); err != nil {
+		log.Error(err)
+		return err
+	}
+
+	var items []struct {
+		id    string
+		Key   string
+		Value string
+	}
+	db = database.Conn()
+	db = db.Table("item").Select("id,key,value").Where("namespace_id=?", req.NamespaceId).Find(&items)
+	if db.Error != nil {
+		log.Error(db.Error)
+		return errors.Wrap(db.Error, "db error")
+	}
+
+	//mark changed config items
+	now := time.Now().Unix()
+	var updateItems []map[string]interface{}
+	for _, item := range items {
+		if val, ok := config[item.Key]; ok {
+			if val == item.Key {
+				updateItems = append(updateItems, map[string]interface{}{
+					"id":          item.id,
+					"value":       val,
+					"is_delete":   0,
+					"update_time": now,
+					"update_by":   req.UserId,
+				})
+			}
+		} else {
+			updateItems = append(updateItems, map[string]interface{}{
+				"id":          item.id,
+				"value":       item.Value,
+				"is_delete":   1,
+				"update_time": now,
+				"update_by":   req.UserId,
+			})
+		}
+	}
+
+	release := map[string]interface{}{
+		"is_disabled": 1,
+		"update_by":   req.UserId,
+		"update_time": now,
+	}
+	historyId := uuid.NewV1().String()
+	releaseHistory := map[string]interface{}{
+		"id":             historyId,
+		"app_id":         namespace.AppId,
+		"cluster_id":     namespace.ClusterId,
+		"namespace_id":   req.NamespaceId,
+		"release_id":     lastHistory.PreReleaseId,
+		"pre_release_id": lastHistory.ReleaseId,
+		"op_type":        ReleaseOpRollback,
+		"create_by":      req.UserId,
+		"create_time":    now,
+		"update_by":      req.UserId,
+		"update_time":    now,
+	}
+
+	tx := database.Conn().Begin()
+	for _, item := range updateItems {
+		tx = database.Update(tx, "item", item, "id=?", item["id"])
+	}
+	tx = database.Update(tx, "release", release, "id=?", lastHistory.PreReleaseId)
+	tx = database.Insert(tx, "release_history", releaseHistory)
+	tx = RecordTable(tx, "release", lastHistory.PreReleaseId, "", req.UserId, OpUpdate)
+	tx = RecordTable(tx, "release_history", historyId, "", req.UserId, OpCreate)
+	if tx.Error != nil {
+		tx.Rollback()
+		log.Error(tx.Error)
+		return errors.Wrap(tx.Error, "db error")
+	} else {
+		tx.Commit()
+	}
+
+	return nil
 }

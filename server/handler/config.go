@@ -143,7 +143,20 @@ func GetConfigReleaseHistory(c *gin.Context) {
 }
 
 func RollbackConfig(c *gin.Context) {
+	var req model.RollbackConfigReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, err)
+		return
+	}
 
+	config := model.ConfigModel{}
+	err := config.Rollback(&req)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.OK(c)
 }
 
 func SyncConfig(c *gin.Context) {
