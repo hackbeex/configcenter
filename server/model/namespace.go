@@ -83,7 +83,7 @@ func (a *NamespaceModel) Create(req *CreateNamespaceReq) (*CreateNamespaceResp, 
 		"update_by":   req.UserId,
 		"update_time": now,
 	})
-	tx = RecordTable(tx, "namespace", id, "", req.UserId, OpCreate)
+	tx = RecordTable(tx, "namespace", id, "", OpCreate, req.UserId)
 	if tx.Error != nil {
 		tx.Rollback()
 		log.Error(tx.Error)

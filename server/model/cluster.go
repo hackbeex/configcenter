@@ -80,7 +80,7 @@ func (a *ClusterModel) Create(req *CreateClusterReq) (*CreateClusterResp, error)
 		"update_by":   req.UserId,
 		"update_time": now,
 	})
-	tx = RecordTable(tx, "cluster", id, "", req.UserId, OpCreate)
+	tx = RecordTable(tx, "cluster", "", req.UserId, OpCreate, id)
 	if tx.Error != nil {
 		tx.Rollback()
 		log.Error(tx.Error)

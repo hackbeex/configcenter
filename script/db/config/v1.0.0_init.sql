@@ -19,8 +19,7 @@ DROP TABLE IF EXISTS app;
 
 CREATE TABLE app (
   id CHAR(36) NOT NULL COMMENT '',
-  appid VARCHAR(64) NOT NULL COMMENT 'global uniqueness appid',
-  name VARCHAR(64) NOT NULL COMMENT '',
+  name VARCHAR(64) NOT NULL COMMENT 'uniqueness name in cluster',
   comment VARCHAR(255) NOT NULL DEFAULT '' COMMENT '',
   is_delete TINYINT(1) NOT NULL DEFAULT 0 COMMENT '',
   create_by CHAR(32) NOT NULL COMMENT '',
@@ -28,7 +27,7 @@ CREATE TABLE app (
   update_by CHAR(32) DEFAULT '' COMMENT '',
   update_time INT NULL COMMENT '',
   PRIMARY KEY (id),
-  KEY idx_appid (appid),
+  KEY idx_name (name),
   KEY idx_update_time (update_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='';
 
@@ -41,7 +40,7 @@ DROP TABLE IF EXISTS namespace;
 
 CREATE TABLE namespace (
   id CHAR(36) NOT NULL COMMENT '',
-  name VARCHAR(64) NOT NULL COMMENT 'global uniqueness name',
+  name VARCHAR(64) NOT NULL COMMENT 'uniqueness name in app',
   app_id CHAR(32) NOT NULL  COMMENT '',
   cluster_id CHAR(32) NOT NULL COMMENT '',
   is_public TINYINT(1) NOT NULL DEFAULT 0 COMMENT '',
@@ -52,6 +51,7 @@ CREATE TABLE namespace (
   update_by CHAR(32) DEFAULT '' COMMENT '',
   update_time INT NULL COMMENT '',
   PRIMARY KEY (id),
+  KEY idx_name (name),
   KEY idx_app_id (app_id),
   KEY idx_cluster_id (cluster_id),
   KEY idx_update_time (update_time)
@@ -88,7 +88,7 @@ DROP TABLE IF EXISTS cluster;
 
 CREATE TABLE cluster (
   id CHAR(36) NOT NULL COMMENT '',
-  name VARCHAR(64) NOT NULL COMMENT 'global uniqueness name',
+  name VARCHAR(64) NOT NULL COMMENT 'uniqueness name in dev',
   app_id CHAR(32) NOT NULL COMMENT '',
   comment VARCHAR(255) NOT NULL DEFAULT '' COMMENT '',
   is_delete TINYINT(1) NOT NULL DEFAULT 0 COMMENT '',
@@ -97,6 +97,7 @@ CREATE TABLE cluster (
   update_by CHAR(32) DEFAULT '' COMMENT '',
   update_time INT NULL COMMENT '',
   PRIMARY KEY (id),
+  KEY idx_name (name),
   KEY idx_app_id (app_id),
   KEY idx_update_time (update_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='';

@@ -15,17 +15,24 @@ const (
 	OpDelete OpType = "delete"
 )
 
-func RecordTable(db *gorm.DB, table, id, comment, userId string, op OpType) *gorm.DB {
+func RecordTable(db *gorm.DB, table, comment, userId string, op OpType, ids ...string) *gorm.DB {
+	if len(ids) == 0 {
+		return db
+	}
 	now := time.Now().Unix()
-	return database.Insert(db, "record", map[string]interface{}{
-		"id":          uuid.NewV1().String(),
-		"table_name":  table,
-		"table_id":    id,
-		"op_type":     op,
-		"comment":     comment,
-		"create_by":   userId,
-		"create_time": now,
-		"update_by":   userId,
-		"update_time": now,
-	})
+	var data []map[string]interface{}
+	for _, id := range ids {
+		data = append(data, map[string]interface{}{
+			"id":          uuid.NewV1().String(),
+			"table_name":  table,
+			"table_id":    id,
+			"op_type":     op,
+			"comment":     comment,
+			"create_by":   userId,
+			"create_time": now,
+			"update_by":   userId,
+			"update_time": now,
+		})
+	}
+	return database.InsertMany(db, "record", data)
 }

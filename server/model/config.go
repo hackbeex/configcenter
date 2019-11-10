@@ -237,7 +237,7 @@ func (c *ConfigModel) Create(req *CreateConfigReq) (*CreateConfigResp, error) {
 			"update_time":  now,
 		}
 		tx = database.Update(tx, "item", item, "id=?", id)
-		tx = RecordTable(tx, "item", id, "", req.UserId, OpUpdate)
+		tx = RecordTable(tx, "item", "", req.UserId, OpUpdate, id)
 	} else {
 		item := map[string]interface{}{
 			"id":           id,
@@ -253,7 +253,7 @@ func (c *ConfigModel) Create(req *CreateConfigReq) (*CreateConfigResp, error) {
 			"update_time":  now,
 		}
 		tx = database.Insert(tx, "item", item)
-		tx = RecordTable(tx, "item", id, "", req.UserId, OpCreate)
+		tx = RecordTable(tx, "item", "", req.UserId, OpCreate, id)
 	}
 	if tx.Error != nil {
 		tx.Rollback()
@@ -263,37 +263,50 @@ func (c *ConfigModel) Create(req *CreateConfigReq) (*CreateConfigResp, error) {
 		tx.Commit()
 	}
 
-	c.recordCommit(id, OpCreate)
+	c.recordItem(OpCreate, req.UserId, id)
 	resp.Id = id
 	return resp, nil
 }
 
-func (c *ConfigModel) recordCommit(itemId string, opType OpType) {
-	var item ConfigItem
+func (c *ConfigModel) recordItem(opType OpType, userId string, itemId ...string) {
+	if len(itemId) == 0 {
+		log.Warn("no itemId to recordItem")
+		return
+	}
+
+	var items []ConfigItem
 	db := database.Conn()
-	db = db.Table("item").Select("*").Scan(&item)
+	db = db.Table("item").Select("*").Where("id IN (?)", itemId).Find(&items)
 	if db.Error != nil {
 		log.Error(db.Error)
 		return
 	}
+	itemMap := map[string][]ConfigItem{}
+	for _, item := range items {
+		itemMap[item.NamespaceId] = append(itemMap[item.NamespaceId], item)
+	}
 
-	data, _ := json.Marshal(map[OpType]interface{}{
-		opType: item,
-	})
 	now := time.Now().Unix()
-	db = database.Conn()
-	db = database.Insert(db, "commit", map[string]interface{}{
-		"id":           uuid.NewV1().String(),
-		"namespace_id": item.NamespaceId,
-		"change_sets":  string(data),
-		"create_by":    item.UpdateBy,
-		"create_time":  now,
-		"update_by":    item.UpdateBy,
-		"update_time":  now,
-	})
-	if db.Error != nil {
-		log.Error(db.Error)
-		return
+	tx := database.Conn().Begin()
+	for nsId, nsItems := range itemMap {
+		data, _ := json.Marshal(CommitItem{
+			opType: nsItems,
+		})
+		tx = database.Insert(tx, "commit", map[string]interface{}{
+			"id":           uuid.NewV1().String(),
+			"namespace_id": nsId,
+			"change_sets":  data,
+			"create_by":    userId,
+			"create_time":  now,
+			"update_by":    userId,
+			"update_time":  now,
+		})
+	}
+	if tx.Error != nil {
+		tx.Rollback()
+		log.Error(tx.Error)
+	} else {
+		tx.Commit()
 	}
 }
 
@@ -355,7 +368,7 @@ func (c *ConfigModel) Update(req *UpdateConfigReq) error {
 	}
 	tx := database.Conn().Begin()
 	tx = database.Update(tx, "item", item, "id=?", req.Id)
-	tx = RecordTable(tx, "item", req.Id, "", req.UserId, OpUpdate)
+	tx = RecordTable(tx, "item", "", req.UserId, OpUpdate, req.Id)
 	if tx.Error != nil {
 		tx.Rollback()
 		log.Error(tx.Error)
@@ -364,7 +377,7 @@ func (c *ConfigModel) Update(req *UpdateConfigReq) error {
 		tx.Commit()
 	}
 
-	c.recordCommit(req.Id, OpUpdate)
+	c.recordItem(OpUpdate, req.UserId, req.Id)
 	return nil
 }
 
@@ -409,7 +422,7 @@ func (c *ConfigModel) Delete(req *DeleteConfigReq) error {
 	}
 	tx := database.Conn().Begin()
 	tx = database.Update(tx, "item", item, "id=?", req.Id)
-	tx = RecordTable(tx, "item", req.Id, "", req.UserId, OpDelete)
+	tx = RecordTable(tx, "item", "", req.UserId, OpDelete, req.Id)
 	if tx.Error != nil {
 		tx.Rollback()
 		log.Error(tx.Error)
@@ -418,7 +431,7 @@ func (c *ConfigModel) Delete(req *DeleteConfigReq) error {
 		tx.Commit()
 	}
 
-	c.recordCommit(req.Id, OpDelete)
+	c.recordItem(OpDelete, req.UserId, req.Id)
 	return nil
 }
 
@@ -436,7 +449,7 @@ func (c *ConfigHistoryReq) Validate() error {
 	)
 }
 
-type CommitItem map[OpType]ConfigItem
+type CommitItem map[OpType][]ConfigItem
 
 type ConfigHistoryResp struct {
 	List   []CommitItem `json:"list"`
@@ -596,8 +609,8 @@ func (c *ConfigModel) Release(req *ReleaseConfigReq) error {
 	tx := database.Conn().Begin()
 	tx = database.Insert(tx, "release", release)
 	tx = database.Insert(tx, "release_history", releaseHistory)
-	tx = RecordTable(tx, "release", id, "", req.UserId, OpCreate)
-	tx = RecordTable(tx, "release_history", historyId, "", req.UserId, OpCreate)
+	tx = RecordTable(tx, "release", "", req.UserId, OpCreate, id)
+	tx = RecordTable(tx, "release_history", "", req.UserId, OpCreate, historyId)
 	if tx.Error != nil {
 		tx.Rollback()
 		log.Error(tx.Error)
@@ -854,9 +867,10 @@ func (c *ConfigModel) Rollback(req *RollbackConfigReq) error {
 	//mark changed config items
 	now := time.Now().Unix()
 	var updateItems []map[string]interface{}
+	var updateItemIds []string
 	for _, item := range items {
 		if val, ok := config[item.Key]; ok {
-			if val == item.Key {
+			if val != item.Value {
 				updateItems = append(updateItems, map[string]interface{}{
 					"id":          item.id,
 					"value":       val,
@@ -864,6 +878,7 @@ func (c *ConfigModel) Rollback(req *RollbackConfigReq) error {
 					"update_time": now,
 					"update_by":   req.UserId,
 				})
+				updateItemIds = append(updateItemIds, item.id)
 			}
 		} else {
 			updateItems = append(updateItems, map[string]interface{}{
@@ -873,6 +888,7 @@ func (c *ConfigModel) Rollback(req *RollbackConfigReq) error {
 				"update_time": now,
 				"update_by":   req.UserId,
 			})
+			updateItemIds = append(updateItemIds, item.id)
 		}
 	}
 
@@ -902,8 +918,8 @@ func (c *ConfigModel) Rollback(req *RollbackConfigReq) error {
 	}
 	tx = database.Update(tx, "release", release, "id=?", lastHistory.PreReleaseId)
 	tx = database.Insert(tx, "release_history", releaseHistory)
-	tx = RecordTable(tx, "release", lastHistory.PreReleaseId, "", req.UserId, OpUpdate)
-	tx = RecordTable(tx, "release_history", historyId, "", req.UserId, OpCreate)
+	tx = RecordTable(tx, "release", "", req.UserId, OpUpdate, lastHistory.PreReleaseId)
+	tx = RecordTable(tx, "release_history", "", req.UserId, OpCreate, historyId)
 	if tx.Error != nil {
 		tx.Rollback()
 		log.Error(tx.Error)
@@ -911,6 +927,189 @@ func (c *ConfigModel) Rollback(req *RollbackConfigReq) error {
 	} else {
 		tx.Commit()
 	}
+
+	if len(updateItemIds) > 0 {
+		c.recordItem(OpUpdate, req.UserId, updateItemIds...)
+	}
+
+	return nil
+}
+
+type SyncConfigReq struct {
+	FromNamespaceId string   `json:"namespace_id"`
+	ToClusterIds    []string `json:"to_cluster_ids"`
+	Keys            []string `json:"keys"`
+	UserId          string   `json:"user_id"`
+}
+
+func (c *SyncConfigReq) Validate() error {
+	return validation.ValidateStruct(&c,
+		validation.Field(&c.FromNamespaceId, validation.Required, validation.Length(32, 32)),
+		validation.Field(&c.ToClusterIds, validation.Required),
+		validation.Field(&c.Keys, validation.Required),
+		validation.Field(&c.UserId, validation.Required, validation.Length(32, 32)),
+	)
+}
+
+//sync is not a type of release, after sync need to release manually
+func (c *ConfigModel) Sync(req *SyncConfigReq) error {
+	if err := req.Validate(); err != nil {
+		log.Warn(err)
+		return err
+	}
+
+	var namespace struct {
+		Id        string
+		Name      string
+		ClusterId string
+	}
+	db := database.Conn()
+	db = db.Table("namespace").Select("id,name,cluster_id").Where("id=? AND is_delete=0", req.FromNamespaceId).Scan(&namespace)
+	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
+		log.Error(db.Error)
+		return errors.Wrap(db.Error, "db error")
+	}
+	if namespace.Id == "" {
+		return errors.New("the namespace not exists")
+	}
+	for _, cid := range req.ToClusterIds {
+		if cid == namespace.ClusterId {
+			return errors.New("the clusters to be sync contains source cluster")
+		}
+	}
+
+	var clusters []struct {
+		Id string
+	}
+	db = database.Conn()
+	db = db.Table("cluster").Select("id,name").Where("id IN (?) AND is_delete=0", req.ToClusterIds).Scan(&clusters)
+	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
+		log.Error(db.Error)
+		return errors.Wrap(db.Error, "db error")
+	}
+	if len(req.ToClusterIds) != len(clusters) {
+		return errors.New("the clusters to be sync not exist")
+	}
+
+	//get items to sync
+	var items []struct {
+		Id      string
+		Key     string
+		Value   string
+		Comment string
+	}
+	db = database.Conn()
+	db = db.Table("item").Select("id,key,value,comment").Where("namespace_id=? AND key IN (?) AND is_delete=0", req.FromNamespaceId, req.Keys).Scan(&items)
+	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
+		log.Error(db.Error)
+		return errors.Wrap(db.Error, "db error")
+	}
+	if len(req.Keys) != len(items) {
+		return errors.New("the keys not exist")
+	}
+
+	//get items to be sync
+	type toItem struct {
+		Id          string
+		Key         string
+		Value       string
+		NamespaceId string
+	}
+	var toItems []toItem
+	db = database.Conn()
+	db = db.Table("item t1").Select("t1.id,t1.key,t1.value,t2.id namespace_id").
+		Joins("namespace t2 ON t1.namespace_id=t2.id AND t2.name=? AND cluster_id IN (?) AND t2.is_delete=0",
+			namespace.Name, req.ToClusterIds).
+		Find(&toItems)
+	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
+		log.Error(db.Error)
+		return errors.Wrap(db.Error, "db error")
+	}
+	if namespace.Id == "" {
+		return errors.New("the namespace not exists")
+	}
+
+	itemMap := map[string]map[string]toItem{}
+	for _, item := range toItems {
+		if itemMap[item.NamespaceId] == nil {
+			itemMap[item.NamespaceId] = map[string]toItem{}
+		}
+		itemMap[item.NamespaceId][item.Key] = item
+	}
+
+	//get max order_num per namespace
+	var itemOrderNums []struct {
+		NamespaceId string
+		MaxOrderNum int
+	}
+	db = database.Conn()
+	db = db.Raw("SELECT namespace_id,MAX(order_num) max_order_num FROM item WHERE namespace_id IN (?) GROUP BY namespace_id").Find(&itemOrderNums)
+	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
+		log.Error(db.Error)
+		return errors.Wrap(db.Error, "db error")
+	}
+	itemOrderNumMap := map[string]int{}
+	for _, num := range itemOrderNums {
+		itemOrderNumMap[num.NamespaceId] = num.MaxOrderNum
+	}
+
+	var updateItems []map[string]interface{}
+	var insertItems []map[string]interface{}
+	var updateItemIds []string
+	var insertItemIds []string
+	now := time.Now().Unix()
+	for _, item := range items {
+		for nsId, nsItem := range itemMap {
+			if v, ok := nsItem[item.Key]; ok {
+				if v.Value != item.Value {
+					updateItems = append(updateItems, map[string]interface{}{
+						"id":          v.Id,
+						"value":       item.Value,
+						"is_delete":   0,
+						"update_time": now,
+						"update_by":   req.UserId,
+					})
+					updateItemIds = append(updateItemIds, v.Id)
+				}
+			} else {
+				itemOrderNumMap[nsId]++
+				id := uuid.NewV1().String()
+				insertItems = append(insertItems, map[string]interface{}{
+					"id":           id,
+					"namespace_id": nsId,
+					"key":          item.Key,
+					"value":        item.Value,
+					"comment":      item.Comment,
+					"order_num":    itemOrderNumMap[nsId],
+					"is_delete":    0,
+					"create_by":    req.UserId,
+					"create_time":  now,
+					"update_by":    req.UserId,
+					"update_time":  now,
+				})
+				insertItemIds = append(insertItemIds, id)
+			}
+		}
+	}
+
+	//分别对被修改方进行 增删改
+	tx := database.Conn().Begin()
+	for _, item := range updateItems {
+		tx = database.Update(tx, "item", item, "id=?", item["id"])
+	}
+	tx = database.InsertMany(tx, "item", insertItems)
+	tx = RecordTable(tx, "item", "", req.UserId, OpUpdate, updateItemIds...)
+	tx = RecordTable(tx, "item", "", req.UserId, OpCreate, insertItemIds...)
+	if tx.Error != nil {
+		tx.Rollback()
+		log.Error(tx.Error)
+		return errors.Wrap(tx.Error, "db error")
+	} else {
+		tx.Commit()
+	}
+
+	c.recordItem(OpUpdate, req.UserId, updateItemIds...)
+	c.recordItem(OpCreate, req.UserId, insertItemIds...)
 
 	return nil
 }

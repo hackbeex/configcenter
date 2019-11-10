@@ -160,7 +160,20 @@ func RollbackConfig(c *gin.Context) {
 }
 
 func SyncConfig(c *gin.Context) {
+	var req model.SyncConfigReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, err)
+		return
+	}
 
+	config := model.ConfigModel{}
+	err := config.Sync(&req)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.OK(c)
 }
 
 func WatchConfig(c *gin.Context) {

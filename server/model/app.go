@@ -14,7 +14,6 @@ type AppModel struct {
 }
 
 type CreateAppReq struct {
-	Appid   string `json:"appid"`
 	Name    string `json:"name"`
 	Comment string `json:"comment"`
 	UserId  string `json:"user_id"`
@@ -22,7 +21,6 @@ type CreateAppReq struct {
 
 func (c *CreateAppReq) Validate() error {
 	return validation.ValidateStruct(&c,
-		validation.Field(&c.Appid, validation.Required, validation.Length(1, 64)),
 		validation.Field(&c.Name, validation.Required, validation.Length(1, 64)),
 		validation.Field(&c.Comment, validation.Length(1, 255)),
 		validation.Field(&c.UserId, validation.Required, validation.Length(32, 32)),
@@ -45,7 +43,7 @@ func (a *AppModel) Create(req *CreateAppReq) (*CreateAppResp, error) {
 		Id string
 	}
 	db := database.Conn()
-	db = db.Table("app").Select("id").Where("appid=? AND is_delete=0", req.Appid).Scan(&existApp)
+	db = db.Table("app").Select("name").Where("name=? AND is_delete=0", req.Name).Scan(&existApp)
 	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
 		log.Error(db.Error)
 		return resp, errors.Wrap(db.Error, "db error")
@@ -59,7 +57,6 @@ func (a *AppModel) Create(req *CreateAppReq) (*CreateAppResp, error) {
 	tx := database.Conn().Begin()
 	tx = database.Insert(tx, "app", map[string]interface{}{
 		"id":          id,
-		"appid":       req.Appid,
 		"name":        req.Name,
 		"comment":     req.Comment,
 		"create_by":   req.UserId,
@@ -67,7 +64,7 @@ func (a *AppModel) Create(req *CreateAppReq) (*CreateAppResp, error) {
 		"update_by":   req.UserId,
 		"update_time": now,
 	})
-	tx = RecordTable(tx, "app", id, "", req.UserId, OpCreate)
+	tx = RecordTable(tx, "app", "", req.UserId, OpCreate, id)
 	if tx.Error != nil {
 		tx.Rollback()
 		log.Error(tx.Error)
