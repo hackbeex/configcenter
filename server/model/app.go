@@ -49,7 +49,7 @@ func (a *AppModel) Create(req *CreateAppReq) (*CreateAppResp, error) {
 		return resp, errors.Wrap(db.Error, "db error")
 	}
 	if existApp.Id != "" {
-		return resp, errors.New("the appid exists")
+		return resp, errors.New("the app name exists")
 	}
 
 	now := time.Now().Unix()
@@ -91,7 +91,6 @@ func (c *AppListReq) Validate() error {
 
 type AppItem struct {
 	Id         string `json:"id"`
-	Appid      string `json:"appid"`
 	Name       string `json:"name"`
 	Comment    string `json:"comment"`
 	CreateBy   string `json:"create_by"`
@@ -121,7 +120,7 @@ func (a *AppModel) List(req *AppListReq) (*AppListResp, error) {
 	}
 
 	db := database.Conn()
-	db = db.Table("app").Select("id,appid,name,comment,create_by,create_time,update_by,update_time").
+	db = db.Table("app").Select("id,name,comment,create_by,create_time,update_by,update_time").
 		Where("is_delete=0").Offset(req.Offset).Limit(req.Limit).Find(&resp.List)
 	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
 		log.Error(db.Error)
@@ -167,7 +166,7 @@ func (a *AppModel) Detail(req *AppDetailReq) (*AppDetailResp, error) {
 	}
 
 	db := database.Conn()
-	db = db.Table("app").Select("id,appid,name,comment,create_by,create_time,update_by,update_time").
+	db = db.Table("app").Select("id,name,comment,create_by,create_time,update_by,update_time").
 		Where("id=? AND is_delete=0", req.Id).Scan(&resp)
 	if db.Error != nil {
 		log.Error(db.Error)

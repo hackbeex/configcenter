@@ -45,14 +45,15 @@ var tab *Table
 func InitTable() {
 	sto := store.New(connectToEtcd())
 	clients := client.InitTable(sto)
+	servers := server.InitTable(sto)
 	tab = &Table{
 		version: "1.0.0",
 		store:   sto,
-		servers: server.InitTable(sto),
+		servers: servers,
 		clients: clients,
 	}
 
-	go tab.watch(watcher.NewClientWatcher(clients))
+	go tab.watch(watcher.NewServerWatcher(servers))
 }
 
 func GetTable() *Table {

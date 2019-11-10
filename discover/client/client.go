@@ -15,7 +15,6 @@ const (
 	KeyClientAttrHost      = "host"
 	KeyClientAttrPost      = "post"
 	KeyClientAttrEnv       = "env"
-	KeyClientAttrStatus    = "status"
 )
 
 type Client struct {

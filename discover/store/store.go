@@ -3,6 +3,9 @@ package store
 import (
 	"context"
 	"github.com/coreos/etcd/clientv3"
+	"github.com/hackbeex/configcenter/util/log"
+	"github.com/pkg/errors"
+	"strings"
 	"time"
 )
 
@@ -78,4 +81,36 @@ func (s *Store) DeleteKeyValues(ks []string, opts ...clientv3.OpOption) error {
 
 func (s *Store) Watch(ctx context.Context, key string, opts ...clientv3.OpOption) clientv3.WatchChan {
 	return s.client.Watch(ctx, key, opts...)
+}
+
+func (s *Store) FromKeyToValue(prefix string, key []byte) (string, string, error) {
+	path := strings.TrimPrefix(string(key), prefix)
+	tmp := strings.Split(path, "/")
+	if len(tmp) < 2 {
+		err := errors.Errorf("invalid server key: %s", string(key))
+		return "", "", err
+	}
+	return tmp[0], tmp[1], nil
+}
+
+func (s *Store) IsValidKV(prefixKey string, attrs []string) (bool, error) {
+	resp, err := s.GetKeyValueWithPrefix(prefixKey)
+	if err != nil {
+		return false, err
+	}
+	existAttrs := map[string]bool{}
+	for _, kv := range resp.Kvs {
+		attr := strings.TrimPrefix(string(kv.Key), prefixKey)
+		if attr == "" {
+			log.Warnf("%s: attr is empty", string(kv.Key))
+			continue
+		}
+		existAttrs[attr] = true
+	}
+	for _, attr := range attrs {
+		if !existAttrs[attr] {
+			return false, nil
+		}
+	}
+	return true, nil
 }

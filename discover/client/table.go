@@ -5,7 +5,6 @@ import (
 	"github.com/hackbeex/configcenter/discover/com"
 	"github.com/hackbeex/configcenter/discover/store"
 	"github.com/hackbeex/configcenter/util/log"
-	"github.com/pkg/errors"
 	"strconv"
 	"sync"
 )
@@ -81,39 +80,11 @@ func InitTable(store *store.Store) *Table {
 			instance.Port, _ = strconv.Atoi(attr)
 		case KeyClientAttrEnv:
 			instance.Env = com.EnvType(attr)
-		case KeyClientAttrStatus:
-			instance.Status = com.RunStatus(attr)
 		default:
 			log.Warn("invalid attr in client: ", attr)
 		}
 	}
 	return clients
-}
-
-func (t *Table) GetStore() *store.Store {
-	return t.store
-}
-
-func (t *Table) UpdateStatus(key AppIdKey, status com.RunStatus) error {
-	client, ok := t.Load(key)
-	if !ok {
-		err := errors.Errorf("server not exist: %s", key)
-		log.Error(err)
-		return err
-	}
-	if client.Status == status {
-		return nil
-	}
-
-	k := KeyClientInstantPrefix + key + "/" + KeyClientAttrStatus
-	_, err := t.store.PutKeyValue(string(k), string(com.OnlineStatus))
-	if err != nil {
-		log.Error(err)
-		return err
-	}
-
-	client.Status = status
-	return nil
 }
 
 func (t *Table) FetchClientList() ([]Client, error) {
@@ -123,16 +94,4 @@ func (t *Table) FetchClientList() ([]Client, error) {
 		return true
 	})
 	return list, nil
-}
-
-func (t *Table) RefreshClientById(key AppIdKey) error {
-	//todo
-
-	return nil
-}
-
-func (t *Table) DeleteClient(key AppIdKey) error {
-	//todo
-
-	return nil
 }

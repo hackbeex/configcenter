@@ -1113,3 +1113,33 @@ func (c *ConfigModel) Sync(req *SyncConfigReq) error {
 
 	return nil
 }
+
+type WatchConfigReq struct {
+	FromNamespaceId string   `json:"namespace_id"`
+	ToClusterIds    []string `json:"to_cluster_ids"`
+	Keys            []string `json:"keys"`
+	UserId          string   `json:"user_id"`
+}
+
+func (c *WatchConfigReq) Validate() error {
+	return validation.ValidateStruct(&c,
+		validation.Field(&c.FromNamespaceId, validation.Required, validation.Length(32, 32)),
+		validation.Field(&c.ToClusterIds, validation.Required),
+		validation.Field(&c.Keys, validation.Required),
+		validation.Field(&c.UserId, validation.Required, validation.Length(32, 32)),
+	)
+}
+
+type WatchConfigResp struct {
+}
+
+func (c *ConfigModel) Watch(req *WatchConfigReq) (*WatchConfigResp, error) {
+	resp := &WatchConfigResp{}
+
+	//todo:
+	// 1.app service下线通知config service和更新DB，config service下线通知app service的状态
+	// 2.配置增删改查，触发config service配置更新事件
+	// 3.config service更新事件来取变化的配置，保持到内存和本地的缓存file (方案：longpoll，hold住45s，异常重试时间加长)
+
+	return resp, nil
+}

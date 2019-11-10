@@ -34,10 +34,11 @@ func (s *Server) Register(store *store.Store) error {
 
 	prefix := KeyServerInstantPrefix + s.Id + "/"
 	kvs := map[string]string{
-		KeyServerIdPrefix + s.Id:   s.Id,
-		prefix + KeyServerAttrHost: s.Host,
-		prefix + KeyServerAttrPost: fmt.Sprintf("%d", s.Port),
-		prefix + KeyServerAttrEnv:  string(s.Env),
+		KeyServerIdPrefix + s.Id:     s.Id,
+		prefix + KeyServerAttrHost:   s.Host,
+		prefix + KeyServerAttrPost:   fmt.Sprintf("%d", s.Port),
+		prefix + KeyServerAttrEnv:    string(s.Env),
+		prefix + KeyServerAttrStatus: string(com.OnlineStatus),
 	}
 
 	if err := store.PutKeyValues(kvs); err != nil {

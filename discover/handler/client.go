@@ -3,7 +3,6 @@ package handler
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/hackbeex/configcenter/discover/client"
-	"github.com/hackbeex/configcenter/discover/com"
 	"github.com/hackbeex/configcenter/discover/meta"
 	"github.com/hackbeex/configcenter/util/response"
 )
@@ -31,23 +30,6 @@ func ClientRegister(c *gin.Context) {
 		return
 	}
 	response.JSON(c, nil, nil)
-}
-
-func ClientHeartbeat(c *gin.Context) {
-	var req struct {
-		AppId client.AppIdKey
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, err)
-		return
-	}
-
-	clients := meta.GetTable().Clients()
-	if err := clients.UpdateStatus(req.AppId, com.OnlineStatus); err != nil {
-		response.Error(c, err)
-		return
-	}
-	response.OK(c)
 }
 
 func ClientFetch(c *gin.Context) {

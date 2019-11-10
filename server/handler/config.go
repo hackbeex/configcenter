@@ -177,5 +177,18 @@ func SyncConfig(c *gin.Context) {
 }
 
 func WatchConfig(c *gin.Context) {
+	var req model.WatchConfigReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, err)
+		return
+	}
 
+	config := model.ConfigModel{}
+	res, err := config.Watch(&req)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.Data(c, res)
 }

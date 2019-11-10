@@ -88,6 +88,61 @@ func InitTable(store *store.Store) *Table {
 	return servers
 }
 
+func (t *Table) GetStore() *store.Store {
+	return t.store
+}
+
+func (t *Table) RefreshServerById(key IdKey) error {
+	resp, err := t.store.GetKeyValueWithPrefix(KeyServerInstantPrefix + string(key))
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+
+	svr, ok := t.Load(key)
+	if !ok {
+		svr = &Server{
+			Id: string(key),
+		}
+	}
+
+	for _, kv := range resp.Kvs {
+		keyStr := string(bytes.TrimPrefix(kv.Key, []byte(key)))
+		switch keyStr {
+		case KeyServerAttrHost:
+			svr.Host = keyStr
+		case KeyServerAttrPost:
+			svr.Port, _ = strconv.Atoi(keyStr)
+		case KeyServerAttrStatus:
+			svr.Status = com.RunStatus(keyStr)
+		case KeyServerAttrEnv:
+			svr.Env = com.EnvType(keyStr)
+		default:
+			err := errors.Errorf("unsupported server attr %s", keyStr)
+			log.Error(err)
+			return err
+		}
+	}
+	t.Store(key, svr)
+
+	//todo notify clients which uses this server to update server list
+
+	return nil
+}
+
+func (t *Table) DeleteServer(key IdKey) error {
+	_, ok := t.Load(key)
+	if !ok {
+		return nil
+	}
+
+	//todo notify clients which uses this server to update server list
+
+	t.Delete(key)
+
+	return nil
+}
+
 func (t *Table) UpdateStatus(key IdKey, status com.RunStatus) error {
 	server, ok := t.Load(key)
 	if !ok {
