@@ -2,8 +2,8 @@ package server
 
 import (
 	"bytes"
-	"github.com/hackbeex/configcenter/discover/com"
 	"github.com/hackbeex/configcenter/discover/store"
+	"github.com/hackbeex/configcenter/util/com"
 	"github.com/hackbeex/configcenter/util/log"
 	"github.com/pkg/errors"
 	"strconv"
@@ -144,13 +144,26 @@ func (t *Table) DeleteServer(key IdKey) error {
 }
 
 func (t *Table) UpdateStatus(key IdKey, status com.RunStatus) error {
+	if status != com.OnlineStatus && status != com.OfflineStatus && status != com.BreakStatus {
+		err := errors.Errorf("status is not support: %s", status)
+		log.Error(err)
+		return err
+	}
+
 	server, ok := t.Load(key)
 	if !ok {
 		err := errors.Errorf("server not exist: %s", key)
 		log.Error(err)
 		return err
 	}
+	if server.Status == com.OnlineStatus {
+		server.Life = serverMaxLife
+	} else {
+		server.Life = 0
+	}
+
 	if server.Status == status {
+		t.Store(key, server)
 		return nil
 	}
 
@@ -162,13 +175,28 @@ func (t *Table) UpdateStatus(key IdKey, status com.RunStatus) error {
 	}
 
 	server.Status = status
+	t.Store(key, server)
 	return nil
 }
 
-func (t *Table) FetchServerList() ([]Server, error) {
-	var list = make([]Server, 0)
+type ServerInfo struct {
+	Id     string        `json:"id"`
+	Host   string        `json:"host"`
+	Port   int           `json:"port"`
+	Env    com.EnvType   `json:"env"`
+	Status com.RunStatus `json:"status"`
+}
+
+func (t *Table) FetchServerList() ([]ServerInfo, error) {
+	var list = make([]ServerInfo, 0)
 	t.Range(func(key IdKey, val *Server) bool {
-		list = append(list, *val)
+		list = append(list, ServerInfo{
+			Id:     val.Id,
+			Host:   val.Host,
+			Port:   val.Port,
+			Env:    val.Env,
+			Status: val.Status,
+		})
 		return true
 	})
 	return list, nil

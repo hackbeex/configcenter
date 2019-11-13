@@ -2,8 +2,8 @@ package client
 
 import (
 	"fmt"
-	"github.com/hackbeex/configcenter/discover/com"
 	"github.com/hackbeex/configcenter/discover/store"
+	"github.com/hackbeex/configcenter/util/com"
 	"github.com/hackbeex/configcenter/util/log"
 	"github.com/pkg/errors"
 )

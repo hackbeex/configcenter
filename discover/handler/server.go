@@ -2,9 +2,9 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/hackbeex/configcenter/discover/com"
 	"github.com/hackbeex/configcenter/discover/meta"
 	"github.com/hackbeex/configcenter/discover/server"
+	"github.com/hackbeex/configcenter/util/com"
 	"github.com/hackbeex/configcenter/util/response"
 )
 
@@ -35,7 +35,8 @@ func ServerRegister(c *gin.Context) {
 
 func ServerHeartbeat(c *gin.Context) {
 	var req struct {
-		Id server.IdKey
+		Id     server.IdKey
+		Status com.RunStatus
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, err)
@@ -43,7 +44,7 @@ func ServerHeartbeat(c *gin.Context) {
 	}
 
 	servers := meta.GetTable().Servers()
-	if err := servers.UpdateStatus(req.Id, com.OnlineStatus); err != nil {
+	if err := servers.UpdateStatus(req.Id, req.Status); err != nil {
 		response.Error(c, err)
 		return
 	}

@@ -53,7 +53,7 @@ func (a *InstanceModel) List(req *InstanceListReq) (*InstanceListResp, error) {
 		req.Limit = 20
 	}
 
-	//TODO
+	//TODO instance op
 
 	db := database.Conn()
 	db = db.Table("app").Select("id,name,comment,create_by,create_time,update_by,update_time").

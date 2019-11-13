@@ -1,9 +1,13 @@
 package util
 
 import (
+	"bytes"
+	"encoding/json"
 	"github.com/hackbeex/configcenter/util/log"
 	"github.com/pkg/errors"
+	"io/ioutil"
 	"net"
+	"net/http"
 	"strconv"
 	"strings"
 )
@@ -35,4 +39,22 @@ func GetUidFromHardwareAddress(port int) (string, error) {
 		return uid, nil
 	}
 	return "", errors.Errorf("can not gain local hardware address")
+}
+
+func HttpPostJson(url string, data []byte) (*http.Response, error) {
+	return http.Post(url, "application/json", bytes.NewReader(data))
+}
+
+func HttpParseResponseToJson(res *http.Response, resp interface{}) error {
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	err = json.Unmarshal(body, resp)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	return nil
 }

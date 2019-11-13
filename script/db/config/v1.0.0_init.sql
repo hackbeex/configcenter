@@ -134,11 +134,14 @@ CREATE TABLE instance (
   id CHAR(36) NOT NULL COMMENT '',
   app_id CHAR(32) NOT NULL COMMENT '',
   cluster_id CHAR(32) NOT NULL COMMENT '',
-  host varchar(64) NOT NULL COMMENT '',
+  host VARCHAR(64) NOT NULL COMMENT '',
+  port INT NOT NULL COMMENT '',
+  is_delete TINYINT(1) NOT NULL DEFAULT 0 COMMENT '',
   create_time INT NOT NULL COMMENT '',
   update_time INT NULL COMMENT '',
   PRIMARY KEY (id),
-  UNIQUE KEY idx_group (app_id,cluster_id,host),
+  KEY idx_group_host_port (host,port),
+  KEY idx_group_app_cluster (app_id,cluster_id),
   KEY idx_update_time (update_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='app instance';
 

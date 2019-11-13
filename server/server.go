@@ -1,19 +1,32 @@
 package server
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/hackbeex/configcenter/local"
+	"github.com/hackbeex/configcenter/server/core"
 	"github.com/hackbeex/configcenter/server/handler"
 	"github.com/hackbeex/configcenter/util"
+	"github.com/hackbeex/configcenter/util/com"
 	"github.com/hackbeex/configcenter/util/log"
-	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
-func Run(env string) {
-	go registerServer(env)
+func Run() {
+	env := os.Getenv("ConfigCenterEnv")
+
+	registerServer(env)
+
+	go exitServer()
+
+	go reportHeartbeat()
+
+	go checkInstances()
+
 	runServer()
 }
 
@@ -29,18 +42,83 @@ func registerServer(env string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	core.InitServer(id, env, conf.ListenHost, conf.ListenPort)
+
 	data, _ := json.Marshal(req{
 		Id:   id,
 		Host: conf.ListenHost,
 		Port: conf.ListenPort,
 		Env:  env,
 	})
-	url := "/api/v1/discover/server/register"
-	_, err = http.Post(url, "application/json", bytes.NewReader(data))
+	discover := local.Conf.Discover
+	url := fmt.Sprintf("%s:%d/api/v1/discover/server/register", discover.ListenHost, discover.ListenPort)
+	_, err = util.HttpPostJson(url, data)
 	if err != nil {
 		log.Fatal(err)
 	}
 	log.Info("config server register successful:", id)
+}
+
+func exitServer() {
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+	<-signalChan
+	log.Info("config server exiting ...")
+	if err := heartbeat(false); err != nil {
+		log.Fatal(err)
+	}
+	os.Exit(0)
+}
+
+func heartbeat(online bool) error {
+	discover := local.Conf.Discover
+	url := fmt.Sprintf("%s:%d/api/v1/discover/server/heartbeat", discover.ListenHost, discover.ListenPort)
+	status := com.OnlineStatus
+	if !online {
+		status = com.OfflineStatus
+	}
+	server := core.GetServer()
+	data, _ := json.Marshal(map[string]string{
+		"id":     server.Id,
+		"status": string(status),
+	})
+	_, err := util.HttpPostJson(url, data)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	return nil
+}
+
+func reportHeartbeat() {
+	for {
+		if err := heartbeat(true); err != nil {
+			log.Error(err)
+		}
+		time.Sleep(time.Second * 10)
+	}
+}
+
+func checkInstances() {
+	server := core.GetServer()
+	instances := server.Instances
+	for {
+		instances.Range(func(instanceId string, val *core.Instance) bool {
+			if val.Life <= 0 {
+				if val.Status == com.OnlineStatus {
+					val.Status = com.BreakStatus
+					instances.Store(instanceId, val)
+				}
+			} else {
+				val.Life--
+				instances.Store(instanceId, val)
+			}
+			return true
+
+		})
+		time.Sleep(time.Second)
+	}
 }
 
 func runServer() {

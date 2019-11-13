@@ -66,7 +66,7 @@ func Update(db *gorm.DB, table string, data map[string]interface{}, where string
 	ques := make([]string, 0, len(data))
 	params := make([]interface{}, 0, len(data)+len(whereParams))
 	for k, v := range data {
-		ques = append(ques, k+"=?")
+		ques = append(ques, "`"+k+"`=?")
 		params = append(params, v)
 	}
 	quesStr := strings.Join(ques, ",")

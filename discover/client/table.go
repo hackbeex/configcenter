@@ -2,8 +2,8 @@ package client
 
 import (
 	"bytes"
-	"github.com/hackbeex/configcenter/discover/com"
 	"github.com/hackbeex/configcenter/discover/store"
+	"github.com/hackbeex/configcenter/util/com"
 	"github.com/hackbeex/configcenter/util/log"
 	"strconv"
 	"sync"
@@ -87,10 +87,26 @@ func InitTable(store *store.Store) *Table {
 	return clients
 }
 
-func (t *Table) FetchClientList() ([]Client, error) {
-	var list = make([]Client, 0)
+type ClientInfo struct {
+	AppId   string        `json:"app_id"`
+	Cluster string        `json:"cluster"`
+	Host    string        `json:"host"`
+	Port    int           `json:"port"`
+	Env     com.EnvType   `json:"env"`
+	Status  com.RunStatus `json:"status"`
+}
+
+func (t *Table) FetchClientList() ([]ClientInfo, error) {
+	var list = make([]ClientInfo, 0)
 	t.Range(func(key AppIdKey, val *Client) bool {
-		list = append(list, *val)
+		list = append(list, ClientInfo{
+			AppId:   val.AppId,
+			Cluster: val.Cluster,
+			Host:    val.Host,
+			Port:    val.Port,
+			Env:     val.Env,
+			Status:  val.Status,
+		})
 		return true
 	})
 	return list, nil

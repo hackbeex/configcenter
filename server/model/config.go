@@ -3,7 +3,9 @@ package model
 import (
 	"encoding/json"
 	validation "github.com/go-ozzo/ozzo-validation"
+	"github.com/hackbeex/configcenter/server/core"
 	"github.com/hackbeex/configcenter/server/database"
+	"github.com/hackbeex/configcenter/util/com"
 	"github.com/hackbeex/configcenter/util/log"
 	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
@@ -1115,18 +1117,20 @@ func (c *ConfigModel) Sync(req *SyncConfigReq) error {
 }
 
 type WatchConfigReq struct {
-	FromNamespaceId string   `json:"namespace_id"`
-	ToClusterIds    []string `json:"to_cluster_ids"`
-	Keys            []string `json:"keys"`
-	UserId          string   `json:"user_id"`
+	Host        string      `json:"host"`
+	Port        int         `json:"port"`
+	Env         com.EnvType `json:"env"`
+	ClusterName string      `json:"cluster_name"`
+	AppName     string      `json:"app_name"`
 }
 
 func (c *WatchConfigReq) Validate() error {
 	return validation.ValidateStruct(&c,
-		validation.Field(&c.FromNamespaceId, validation.Required, validation.Length(32, 32)),
-		validation.Field(&c.ToClusterIds, validation.Required),
-		validation.Field(&c.Keys, validation.Required),
-		validation.Field(&c.UserId, validation.Required, validation.Length(32, 32)),
+		validation.Field(&c.Host, validation.Required),
+		validation.Field(&c.Port, validation.Required),
+		validation.Field(&c.ClusterName, validation.Required),
+		validation.Field(&c.AppName, validation.Required),
+		validation.Field(&c.Env, validation.Required),
 	)
 }
 
@@ -1136,10 +1140,75 @@ type WatchConfigResp struct {
 func (c *ConfigModel) Watch(req *WatchConfigReq) (*WatchConfigResp, error) {
 	resp := &WatchConfigResp{}
 
-	//todo:
-	// 1.app service下线通知config service和更新DB，config service下线通知app service的状态
-	// 2.配置增删改查，触发config service配置更新事件
-	// 3.config service更新事件来取变化的配置，保持到内存和本地的缓存file (方案：longpoll，hold住45s，异常重试时间加长)
+	if err := req.Validate(); err != nil {
+		log.Error(err)
+		return resp, err
+	}
+
+	server := core.GetServer()
+	if server.Env != req.Env {
+		err := errors.Errorf("server env[%s] is not match instance env[%s]", server.Env, req.Env)
+		log.Warn(err)
+		return resp, err
+	}
+
+	now := time.Now().Unix()
+
+	var instance struct {
+		Id        string
+		AppId     string
+		ClusterId string
+	}
+	db := database.Conn()
+	db = db.Table("instance t1").Select("t1.id,t1.cluster_id,t1.app_id").
+		Joins("JOIN cluster t2 ON t1.cluster_id=t2.id AND t2.name=? AND t2.is_delete=0", req.ClusterName).
+		Joins("JOIN app t3 ON t1.app_id=t3.id AND t3.name=? AND t3.is_delete=0", req.AppName).
+		Where("t1.host=? AND t1.port=? AND t1.is_delete=0", req.Host, req.Port).Scan(&instance)
+	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
+		log.Error(db.Error)
+		return resp, errors.Wrap(db.Error, "db error")
+	}
+	if instance.Id == "" {
+		instance.Id = uuid.NewV1().String()
+		db := database.Conn()
+		db = database.Insert(db, "instance", map[string]interface{}{
+			"id":          instance.Id,
+			"app_id":      instance.AppId,
+			"cluster_id":  instance.ClusterId,
+			"host":        req.Host,
+			"port":        req.Host,
+			"create_time": now,
+			"update_time": now,
+		})
+		if db.Error != nil {
+			log.Error(db.Error)
+			return resp, errors.Wrap(db.Error, "db error")
+		}
+	}
+
+	instances := server.Instances
+	ins := &core.Instance{
+		Id:      instance.Id,
+		AppId:   instance.AppId,
+		Cluster: instance.ClusterId,
+		Host:    req.Host,
+		Port:    req.Port,
+		Status:  com.OnlineStatus,
+		Life:    core.InstanceMaxLife,
+	}
+	instances.Store(instance.Id, ins)
+
+	count := 0
+	for {
+		if count >= 45 {
+			break
+		}
+		count++
+
+		//TODO
+
+		time.Sleep(time.Second)
+	}
 
 	return resp, nil
 }

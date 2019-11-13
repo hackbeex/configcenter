@@ -2,8 +2,8 @@ package server
 
 import (
 	"fmt"
-	"github.com/hackbeex/configcenter/discover/com"
 	"github.com/hackbeex/configcenter/discover/store"
+	"github.com/hackbeex/configcenter/util/com"
 	"github.com/hackbeex/configcenter/util/log"
 	"github.com/pkg/errors"
 )
@@ -15,6 +15,8 @@ const (
 	KeyServerAttrHost      = "host"
 	KeyServerAttrPost      = "post"
 	KeyServerAttrStatus    = "status"
+
+	serverMaxLife = 4
 )
 
 type Server struct {
@@ -23,6 +25,7 @@ type Server struct {
 	Port   int
 	Env    com.EnvType
 	Status com.RunStatus
+	Life   int
 }
 
 func (s *Server) Register(store *store.Store) error {
