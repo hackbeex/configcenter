@@ -39,7 +39,7 @@ type InstanceListResp struct {
 	List   []InstanceItem `json:"list"`
 }
 
-func (a *InstanceModel) List(req *InstanceListReq) (*InstanceListResp, error) {
+func (m *InstanceModel) List(req *InstanceListReq) (*InstanceListResp, error) {
 	resp := &InstanceListResp{
 		List:   []InstanceItem{},
 		Offset: -1,
@@ -77,4 +77,24 @@ func (a *InstanceModel) List(req *InstanceListReq) (*InstanceListResp, error) {
 	}
 
 	return resp, nil
+}
+
+type ExitInstanceReq struct {
+	NamespaceId string `json:"namespace_id"`
+}
+
+func (c *ExitInstanceReq) Validate() error {
+	return validation.ValidateStruct(&c,
+		validation.Field(&c.Limit, validation.Max(100)),
+		validation.Field(&c.Offset, validation.Min(0)),
+	)
+}
+
+func (m *InstanceModel) ExitInstance(req *ExitInstanceReq) error {
+	if err := req.Validate(); err != nil {
+		log.Warn(err)
+		return err
+	}
+
+	return nil
 }

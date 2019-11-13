@@ -108,7 +108,7 @@ func (c *ConfigModel) List(req *ConfigListReq) (*ConfigListResp, error) {
 	db := database.Conn()
 	db = db.Table("release_history t1").Select("t2.config,t1.update_time").
 		Joins("release t2 ON t1.release_id=t2.id AND t2.is_delete=0").
-		Where("t1.namespace_id=? AND op_type=? AND t1.is_delete=0", req.NamespaceId, ReleaseOpNormal).
+		Where("t1.namespace_id=? AND t1.op_type=? AND t1.is_delete=0", req.NamespaceId, ReleaseOpNormal).
 		Order("t1.update_time DESC").Limit(1).Scan(&release)
 	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
 		log.Error(db.Error)
@@ -1135,6 +1135,7 @@ func (c *WatchConfigReq) Validate() error {
 }
 
 type WatchConfigResp struct {
+	InstanceId string `json:"instance_id"`
 }
 
 func (c *ConfigModel) Watch(req *WatchConfigReq) (*WatchConfigResp, error) {
@@ -1185,6 +1186,7 @@ func (c *ConfigModel) Watch(req *WatchConfigReq) (*WatchConfigResp, error) {
 			return resp, errors.Wrap(db.Error, "db error")
 		}
 	}
+	resp.InstanceId = instance.Id
 
 	instances := server.Instances
 	ins := &core.Instance{
@@ -1194,7 +1196,7 @@ func (c *ConfigModel) Watch(req *WatchConfigReq) (*WatchConfigResp, error) {
 		Host:    req.Host,
 		Port:    req.Port,
 		Status:  com.OnlineStatus,
-		Life:    core.InstanceMaxLife,
+		Life:    60,
 	}
 	instances.Store(instance.Id, ins)
 

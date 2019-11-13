@@ -141,6 +141,7 @@ func runServer() {
 	r.POST("/api/v1/config/sync", handler.SyncConfig)
 	r.POST("/api/v1/config/watch", handler.WatchConfig)
 	r.POST("/api/v1/instance/list", handler.GetInstanceList)
+	r.POST("/api/v1/instance/exit", handler.ExitInstance)
 
 	conf := local.Conf.Server
 	addr := fmt.Sprintf("%s:%d", conf.ListenHost, conf.ListenPort)

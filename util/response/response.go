@@ -5,6 +5,11 @@ import (
 	"net/http"
 )
 
+type BaseResult struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
 type Result struct {
 	Code    int         `json:"code"`
 	Message string      `json:"message"`

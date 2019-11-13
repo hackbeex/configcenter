@@ -5,8 +5,6 @@ import (
 	"sync"
 )
 
-const InstanceMaxLife = 60
-
 type Instance struct {
 	Id      string
 	AppId   string
