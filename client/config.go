@@ -9,8 +9,36 @@ import (
 	"time"
 )
 
+type Configs struct {
+	List map[string]string
+}
+
+func (c *Client) GetAllConfig() (*Configs, error) {
+	var listResp = &Configs{
+		List: map[string]string{},
+	}
+	c.config.Range(func(key string, val *Item) bool {
+		listResp.List[key] = val.Value
+		return true
+	})
+	return listResp, nil
+}
+
+func (c *Client) GetConfig(key string, defaultVal string) (string, bool) {
+	item, ok := c.config.Load(key)
+	if !ok {
+		return defaultVal, ok
+	}
+	return item.Value, ok
+}
+
+//if key == "", listen all config change
+func (c *Client) ListenConfig(key string, callback ListenCallback) {
+	c.listens.AddCallback(key, callback)
+}
+
 func (c *Client) initConfig() error {
-	res, err := c.GetConfigList()
+	res, err := c.fetchConfigList()
 	if err != nil {
 		log.Error(err)
 		return err
@@ -27,7 +55,7 @@ type ConfigListResp struct {
 	List []Item `json:"list"`
 }
 
-func (c *Client) GetConfigList() (*ConfigListResp, error) {
+func (c *Client) fetchConfigList() (*ConfigListResp, error) {
 	type configListItem struct {
 		Items []Item `json:"items"`
 	}
@@ -67,7 +95,6 @@ func (c *Client) GetConfigList() (*ConfigListResp, error) {
 type WatchConfigResp struct {
 	InstanceId string                   `json:"instance_id"`
 	EventType  com.ConfigWatchEventType `json:"event_type"`
-	//Configs    map[com.OpType][]core.ChangeConfig `json:"configs"`
 }
 
 func (c *Client) fetchConfigEvent() (*WatchConfigResp, error) {
@@ -100,14 +127,6 @@ func (c *Client) fetchConfigEvent() (*WatchConfigResp, error) {
 	if resp.EventType != com.CwNothing {
 		log.Infof("watch config event type: %s", resp.EventType)
 	}
-	if resp.EventType == com.CwRefreshAll {
-		config, err := c.GetConfigList()
-		if err != nil {
-			log.Error(err)
-			return resp, err
-		}
-
-	}
 
 	return resp, nil
 }
@@ -134,10 +153,57 @@ func (c *Client) watchConfig() {
 			time.Sleep(c.watchConfigInterval)
 			continue
 		}
-
 		c.watchConfigInterval = 0
 
-		//todo do config something
 		log.Info(cf)
+
+		if cf.EventType == com.CwRefreshAll {
+			res, err := c.fetchConfigList()
+			if err != nil {
+				log.Error(err)
+				continue
+			}
+			old, err := c.GetAllConfig()
+			if err != nil {
+				log.Error(err)
+				continue
+			}
+			type updateItem struct {
+				OldVal string
+				NewVal string
+			}
+			newMap := map[string]string{}
+			for _, item := range res.List {
+				c.config.Store(item.Key, &item)
+				newMap[item.Key] = item.Value
+			}
+			for key, val := range old.List {
+				if newVal, ok := newMap[key]; !ok {
+					c.listens.Call(key, &CallbackParam{
+						Key:    key,
+						NewVal: val,
+						OldVal: val,
+						OpType: com.OpDelete,
+					}, true)
+				} else if newVal != val {
+					c.listens.Call(key, &CallbackParam{
+						Key:    key,
+						NewVal: newVal,
+						OldVal: val,
+						OpType: com.OpUpdate,
+					}, true)
+				}
+			}
+			for key, newVal := range newMap {
+				if _, ok := old.List[key]; !ok {
+					c.listens.Call(key, &CallbackParam{
+						Key:    key,
+						NewVal: newVal,
+						OldVal: newVal,
+						OpType: com.OpCreate,
+					}, true)
+				}
+			}
+		}
 	}
 }

@@ -25,7 +25,9 @@ type Client struct {
 	server   serverInfo
 	config   *ConfigTable
 
+	watchConfigChange   bool
 	watchConfigInterval time.Duration
+	listens             *ListenTable
 }
 
 type discoverInfo struct {
@@ -60,7 +62,8 @@ func New(cf *Config) *Client {
 			Host: cf.DiscoverHost,
 			Port: cf.DiscoverPort,
 		},
-		config: NewConfigTable(),
+		config:  NewConfigTable(),
+		listens: NewListenTable(),
 	}
 }
 
