@@ -83,8 +83,8 @@ func (c *ConfigListReq) Validate() error {
 
 type ConfigItemInfo struct {
 	ConfigItem
-	IsRelease int    `json:"is_release"`
-	Status    OpType `json:"status"`
+	IsRelease int        `json:"is_release"`
+	Status    com.OpType `json:"status"`
 }
 
 type ConfigListResp struct {
@@ -101,26 +101,13 @@ func (c *ConfigModel) List(req *ConfigListReq) (*ConfigListResp, error) {
 		return resp, err
 	}
 
-	var release struct {
-		UpdateTime int
-		Config     []byte
-	}
-	db := database.Conn()
-	db = db.Table("release_history t1").Select("t2.config,t1.update_time").
-		Joins("release t2 ON t1.release_id=t2.id AND t2.is_delete=0").
-		Where("t1.namespace_id=? AND t1.op_type=? AND t1.is_delete=0", req.NamespaceId, ReleaseOpNormal).
-		Order("t1.update_time DESC").Limit(1).Scan(&release)
-	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
-		log.Error(db.Error)
-		return resp, errors.Wrap(db.Error, "db error")
-	}
-	config := map[string]string{}
-	if err := json.Unmarshal(release.Config, &config); err != nil {
-		log.Error(err)
+	//get current release config
+	release, err := c.getLastRelease(req.NamespaceId)
+	if err != nil {
 		return resp, err
 	}
 
-	db = database.Conn()
+	db := database.Conn()
 	db = db.Table("item").Select("*, 1 AS is_release").
 		Where("namespace_id=? AND update_time<? AND is_delete=0", req.NamespaceId, release.UpdateTime).
 		Find(&resp.List)
@@ -141,18 +128,164 @@ func (c *ConfigModel) List(req *ConfigListReq) (*ConfigListResp, error) {
 	}
 
 	for _, item := range unReleaseItems {
-		if _, ok := config[item.Key]; ok {
+		if _, ok := release.Config[item.Key]; ok {
 			if item.IsDelete == 1 {
-				item.Status = OpDelete
+				item.Status = com.OpDelete
 			} else {
-				item.Status = OpUpdate
+				item.Status = com.OpUpdate
 			}
 		} else if item.IsDelete == 1 {
 			continue //unreleased item do not need to show
 		} else {
-			item.Status = OpCreate
+			item.Status = com.OpCreate
 		}
 		resp.List = append(resp.List, item)
+	}
+
+	return resp, nil
+}
+
+type lastRelease struct {
+	Id         string
+	UpdateTime int
+	Config     map[string]string
+}
+
+func (c *ConfigModel) getLastRelease(namespaceId string) (*lastRelease, error) {
+	var resp = &lastRelease{}
+	var release struct {
+		Id         string
+		UpdateTime int
+		Config     []byte
+	}
+	db := database.Conn()
+	db = db.Table("release_history t1").Select("t1.id,t2.config,t1.update_time").
+		Joins("release t2 ON t1.release_id=t2.id AND t2.is_delete=0").
+		Where("t1.namespace_id=? AND t1.op_type=? AND t1.is_delete=0", namespaceId, ReleaseOpNormal).
+		Order("t1.update_time DESC").Limit(1).Scan(&release)
+	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
+		log.Error(db.Error)
+		return resp, errors.Wrap(db.Error, "db error")
+	}
+
+	if err := json.Unmarshal(release.Config, &resp.Config); err != nil {
+		log.Error(err)
+		return resp, err
+	}
+	resp.Id = release.Id
+	resp.UpdateTime = release.UpdateTime
+	return resp, nil
+}
+
+type ConfigListByAppReq struct {
+	AppId      string `json:"app_id"`
+	InstanceId string `json:"instance_id"`
+}
+
+func (c *ConfigListByAppReq) Validate() error {
+	return validation.ValidateStruct(&c,
+		validation.Field(&c.AppId, validation.Required, validation.Length(32, 32)),
+	)
+}
+
+type ItemSimple struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+type ConfigListByAppItem struct {
+	Namespace NamespaceItem `json:"namespace"`
+	Items     []ItemSimple  `json:"items"`
+}
+
+type ConfigListByAppResp struct {
+	List []ConfigListByAppItem `json:"list"`
+}
+
+func (c *ConfigModel) ListByApp(req *ConfigListByAppReq) (*ConfigListByAppResp, error) {
+	resp := &ConfigListByAppResp{
+		List: []ConfigListByAppItem{},
+	}
+
+	if req.InstanceId != "" {
+		var instance struct {
+			Id string
+		}
+		db := database.Conn()
+		db = db.Table("instance").Select("id").Where("id=? AND app_id=? AND is_delete=0", req.InstanceId, req.AppId).Scan(&instance)
+		if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
+			log.Error(db.Error)
+			return resp, errors.Wrap(db.Error, "db error")
+		}
+		if instance.Id == "" {
+			log.Warnf("instance id[%s] not matches app id[%s]", req.InstanceId, req.AppId)
+			return resp, errors.New("instance id not matches app id")
+		}
+	}
+
+	app := AppModel{}
+	appDetail, err := app.Detail(&AppDetailReq{
+		AppId: req.AppId,
+	})
+	if err != nil {
+		return resp, err
+	}
+
+	var lastReleaseId string
+	var lastUpdateTime int
+	for _, namespace := range appDetail.Namespaces {
+		release, err := c.getLastRelease(namespace.Id)
+		if err != nil {
+			return resp, err
+		}
+		if release.UpdateTime > lastUpdateTime {
+			lastReleaseId = release.Id
+		}
+		items := make([]ItemSimple, 0, len(release.Config))
+		for k, v := range release.Config {
+			items = append(items, ItemSimple{
+				Key:   k,
+				Value: v,
+			})
+		}
+		resp.List = append(resp.List, ConfigListByAppItem{
+			Namespace: namespace,
+			Items:     items,
+		})
+	}
+
+	if req.InstanceId != "" {
+		now := time.Now().Unix()
+		var release struct {
+			Id string `json:"id"`
+		}
+		db := database.Conn()
+		db = db.Table("instance_release").Select("id").Where("instance_id=? AND is_delete=0", req.InstanceId).Scan(&release)
+		if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
+			log.Error(db.Error)
+			return resp, errors.Wrap(db.Error, "db error")
+		}
+		tx := database.Conn().Begin()
+		if release.Id != "" {
+			tx = tx.Exec("UPDATE instance_release SET release_history_id=?, update_time=? WHERE id=?", lastReleaseId, now, release.Id)
+			tx = RecordTable(tx, "instance_release", "", "", com.OpUpdate, release.Id)
+		} else {
+			id := uuid.NewV1().String()
+			tx = database.Insert(tx, "instance_release", map[string]interface{}{
+				"id":                 id,
+				"instance_id":        req.InstanceId,
+				"release_history_id": lastReleaseId,
+				"create_time":        now,
+				"update_time":        now,
+			})
+			tx = RecordTable(tx, "instance_release", "", "", com.OpCreate, id)
+		}
+		if tx.Error != nil {
+			tx.Rollback()
+			log.Error(tx.Error)
+			return resp, errors.Wrap(tx.Error, "db error")
+		} else {
+			tx.Commit()
+		}
 	}
 
 	return resp, nil
@@ -239,7 +372,7 @@ func (c *ConfigModel) Create(req *CreateConfigReq) (*CreateConfigResp, error) {
 			"update_time":  now,
 		}
 		tx = database.Update(tx, "item", item, "id=?", id)
-		tx = RecordTable(tx, "item", "", req.UserId, OpUpdate, id)
+		tx = RecordTable(tx, "item", "", req.UserId, com.OpUpdate, id)
 	} else {
 		item := map[string]interface{}{
 			"id":           id,
@@ -255,7 +388,7 @@ func (c *ConfigModel) Create(req *CreateConfigReq) (*CreateConfigResp, error) {
 			"update_time":  now,
 		}
 		tx = database.Insert(tx, "item", item)
-		tx = RecordTable(tx, "item", "", req.UserId, OpCreate, id)
+		tx = RecordTable(tx, "item", "", req.UserId, com.OpCreate, id)
 	}
 	if tx.Error != nil {
 		tx.Rollback()
@@ -265,12 +398,12 @@ func (c *ConfigModel) Create(req *CreateConfigReq) (*CreateConfigResp, error) {
 		tx.Commit()
 	}
 
-	c.recordItem(OpCreate, req.UserId, id)
+	c.recordItem(com.OpCreate, req.UserId, id)
 	resp.Id = id
 	return resp, nil
 }
 
-func (c *ConfigModel) recordItem(opType OpType, userId string, itemId ...string) {
+func (c *ConfigModel) recordItem(opType com.OpType, userId string, itemId ...string) {
 	if len(itemId) == 0 {
 		log.Warn("no itemId to recordItem")
 		return
@@ -370,7 +503,7 @@ func (c *ConfigModel) Update(req *UpdateConfigReq) error {
 	}
 	tx := database.Conn().Begin()
 	tx = database.Update(tx, "item", item, "id=?", req.Id)
-	tx = RecordTable(tx, "item", "", req.UserId, OpUpdate, req.Id)
+	tx = RecordTable(tx, "item", "", req.UserId, com.OpUpdate, req.Id)
 	if tx.Error != nil {
 		tx.Rollback()
 		log.Error(tx.Error)
@@ -379,7 +512,7 @@ func (c *ConfigModel) Update(req *UpdateConfigReq) error {
 		tx.Commit()
 	}
 
-	c.recordItem(OpUpdate, req.UserId, req.Id)
+	c.recordItem(com.OpUpdate, req.UserId, req.Id)
 	return nil
 }
 
@@ -424,7 +557,7 @@ func (c *ConfigModel) Delete(req *DeleteConfigReq) error {
 	}
 	tx := database.Conn().Begin()
 	tx = database.Update(tx, "item", item, "id=?", req.Id)
-	tx = RecordTable(tx, "item", "", req.UserId, OpDelete, req.Id)
+	tx = RecordTable(tx, "item", "", req.UserId, com.OpDelete, req.Id)
 	if tx.Error != nil {
 		tx.Rollback()
 		log.Error(tx.Error)
@@ -433,7 +566,7 @@ func (c *ConfigModel) Delete(req *DeleteConfigReq) error {
 		tx.Commit()
 	}
 
-	c.recordItem(OpDelete, req.UserId, req.Id)
+	c.recordItem(com.OpDelete, req.UserId, req.Id)
 	return nil
 }
 
@@ -451,7 +584,7 @@ func (c *ConfigHistoryReq) Validate() error {
 	)
 }
 
-type CommitItem map[OpType][]ConfigItem
+type CommitItem map[com.OpType][]ConfigItem
 
 type ConfigHistoryResp struct {
 	List   []CommitItem `json:"list"`
@@ -611,8 +744,8 @@ func (c *ConfigModel) Release(req *ReleaseConfigReq) error {
 	tx := database.Conn().Begin()
 	tx = database.Insert(tx, "release", release)
 	tx = database.Insert(tx, "release_history", releaseHistory)
-	tx = RecordTable(tx, "release", "", req.UserId, OpCreate, id)
-	tx = RecordTable(tx, "release_history", "", req.UserId, OpCreate, historyId)
+	tx = RecordTable(tx, "release", "", req.UserId, com.OpCreate, id)
+	tx = RecordTable(tx, "release_history", "", req.UserId, com.OpCreate, historyId)
 	if tx.Error != nil {
 		tx.Rollback()
 		log.Error(tx.Error)
@@ -640,7 +773,7 @@ func (c *ConfigReleaseHistoryReq) Validate() error {
 
 type ChangeItem struct {
 	Key      string
-	Type     OpType
+	Type     com.OpType
 	NewValue string
 	OldValue string
 }
@@ -727,7 +860,7 @@ func (c *ConfigModel) GetReleaseHistory(req *ConfigReleaseHistoryReq) (*ConfigRe
 					if pre != val {
 						change[key] = ChangeItem{
 							Key:      key,
-							Type:     OpUpdate,
+							Type:     com.OpUpdate,
 							NewValue: val,
 							OldValue: pre,
 						}
@@ -735,7 +868,7 @@ func (c *ConfigModel) GetReleaseHistory(req *ConfigReleaseHistoryReq) (*ConfigRe
 				} else {
 					change[key] = ChangeItem{
 						Key:      key,
-						Type:     OpCreate,
+						Type:     com.OpCreate,
 						NewValue: val,
 						OldValue: "",
 					}
@@ -745,7 +878,7 @@ func (c *ConfigModel) GetReleaseHistory(req *ConfigReleaseHistoryReq) (*ConfigRe
 				if _, ok := config[key]; !ok {
 					change[key] = ChangeItem{
 						Key:      key,
-						Type:     OpDelete,
+						Type:     com.OpDelete,
 						NewValue: "",
 						OldValue: pre,
 					}
@@ -920,8 +1053,8 @@ func (c *ConfigModel) Rollback(req *RollbackConfigReq) error {
 	}
 	tx = database.Update(tx, "release", release, "id=?", lastHistory.PreReleaseId)
 	tx = database.Insert(tx, "release_history", releaseHistory)
-	tx = RecordTable(tx, "release", "", req.UserId, OpUpdate, lastHistory.PreReleaseId)
-	tx = RecordTable(tx, "release_history", "", req.UserId, OpCreate, historyId)
+	tx = RecordTable(tx, "release", "", req.UserId, com.OpUpdate, lastHistory.PreReleaseId)
+	tx = RecordTable(tx, "release_history", "", req.UserId, com.OpCreate, historyId)
 	if tx.Error != nil {
 		tx.Rollback()
 		log.Error(tx.Error)
@@ -931,7 +1064,7 @@ func (c *ConfigModel) Rollback(req *RollbackConfigReq) error {
 	}
 
 	if len(updateItemIds) > 0 {
-		c.recordItem(OpUpdate, req.UserId, updateItemIds...)
+		c.recordItem(com.OpUpdate, req.UserId, updateItemIds...)
 	}
 
 	return nil
@@ -1100,8 +1233,8 @@ func (c *ConfigModel) Sync(req *SyncConfigReq) error {
 		tx = database.Update(tx, "item", item, "id=?", item["id"])
 	}
 	tx = database.InsertMany(tx, "item", insertItems)
-	tx = RecordTable(tx, "item", "", req.UserId, OpUpdate, updateItemIds...)
-	tx = RecordTable(tx, "item", "", req.UserId, OpCreate, insertItemIds...)
+	tx = RecordTable(tx, "item", "", req.UserId, com.OpUpdate, updateItemIds...)
+	tx = RecordTable(tx, "item", "", req.UserId, com.OpCreate, insertItemIds...)
 	if tx.Error != nil {
 		tx.Rollback()
 		log.Error(tx.Error)
@@ -1110,32 +1243,34 @@ func (c *ConfigModel) Sync(req *SyncConfigReq) error {
 		tx.Commit()
 	}
 
-	c.recordItem(OpUpdate, req.UserId, updateItemIds...)
-	c.recordItem(OpCreate, req.UserId, insertItemIds...)
+	c.recordItem(com.OpUpdate, req.UserId, updateItemIds...)
+	c.recordItem(com.OpCreate, req.UserId, insertItemIds...)
 
 	return nil
 }
 
 type WatchConfigReq struct {
-	Host        string      `json:"host"`
-	Port        int         `json:"port"`
-	Env         com.EnvType `json:"env"`
-	ClusterName string      `json:"cluster_name"`
-	AppName     string      `json:"app_name"`
+	Host    string      `json:"host"`
+	Port    int         `json:"port"`
+	Env     com.EnvType `json:"env"`
+	Cluster string      `json:"cluster"`
+	App     string      `json:"app"`
 }
 
 func (c *WatchConfigReq) Validate() error {
 	return validation.ValidateStruct(&c,
 		validation.Field(&c.Host, validation.Required),
 		validation.Field(&c.Port, validation.Required),
-		validation.Field(&c.ClusterName, validation.Required),
-		validation.Field(&c.AppName, validation.Required),
+		validation.Field(&c.Cluster, validation.Required),
+		validation.Field(&c.App, validation.Required),
 		validation.Field(&c.Env, validation.Required),
 	)
 }
 
 type WatchConfigResp struct {
-	InstanceId string `json:"instance_id"`
+	InstanceId string                   `json:"instance_id"`
+	EventType  com.ConfigWatchEventType `json:"event_type"`
+	//Configs    map[com.OpType][]core.ChangeConfig `json:"configs"`
 }
 
 func (c *ConfigModel) Watch(req *WatchConfigReq) (*WatchConfigResp, error) {
@@ -1155,16 +1290,29 @@ func (c *ConfigModel) Watch(req *WatchConfigReq) (*WatchConfigResp, error) {
 
 	now := time.Now().Unix()
 
-	var instance struct {
-		Id        string
+	var cluster struct {
 		AppId     string
 		ClusterId string
 	}
 	db := database.Conn()
-	db = db.Table("instance t1").Select("t1.id,t1.cluster_id,t1.app_id").
-		Joins("JOIN cluster t2 ON t1.cluster_id=t2.id AND t2.name=? AND t2.is_delete=0", req.ClusterName).
-		Joins("JOIN app t3 ON t1.app_id=t3.id AND t3.name=? AND t3.is_delete=0", req.AppName).
-		Where("t1.host=? AND t1.port=? AND t1.is_delete=0", req.Host, req.Port).Scan(&instance)
+	db = db.Table("cluster t1").Select("t1.id cluster_id, t2.id app_id").
+		Joins("JOIN app t2 ON t1.app_id=t2.id AND t2.name=? AND t2.is_delete=0", req.App).
+		Where("t1.name=? AND t1.is_delete=0", req.Cluster).Scan(&cluster)
+	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
+		log.Error(db.Error)
+		return resp, errors.Wrap(db.Error, "db error")
+	}
+	if cluster.ClusterId == "" {
+		return resp, errors.New("cluster or app not exists")
+	}
+
+	var instance struct {
+		Id string
+	}
+	db = database.Conn()
+	db = db.Table("instance").Select("id").
+		Where("app_id=? AND cluster_id=? AND host=? AND port=? AND is_delete=0", cluster.AppId, cluster.ClusterId, req.Host, req.Port).
+		Scan(&instance)
 	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
 		log.Error(db.Error)
 		return resp, errors.Wrap(db.Error, "db error")
@@ -1174,8 +1322,8 @@ func (c *ConfigModel) Watch(req *WatchConfigReq) (*WatchConfigResp, error) {
 		db := database.Conn()
 		db = database.Insert(db, "instance", map[string]interface{}{
 			"id":          instance.Id,
-			"app_id":      instance.AppId,
-			"cluster_id":  instance.ClusterId,
+			"app_id":      cluster.AppId,
+			"cluster_id":  cluster.ClusterId,
 			"host":        req.Host,
 			"port":        req.Host,
 			"create_time": now,
@@ -1189,27 +1337,46 @@ func (c *ConfigModel) Watch(req *WatchConfigReq) (*WatchConfigResp, error) {
 	resp.InstanceId = instance.Id
 
 	instances := server.Instances
-	ins := &core.Instance{
-		Id:      instance.Id,
-		AppId:   instance.AppId,
-		Cluster: instance.ClusterId,
-		Host:    req.Host,
-		Port:    req.Port,
-		Status:  com.OnlineStatus,
-		Life:    60,
+	ins, ok := instances.Load(instance.Id)
+	if !ok {
+		ins = &core.Instance{
+			Id:       instance.Id,
+			AppId:    cluster.AppId,
+			Cluster:  cluster.ClusterId,
+			Host:     req.Host,
+			Port:     req.Port,
+			Status:   com.OnlineStatus,
+			Life:     60,
+			ChChange: make(chan bool, 1),
+		}
+		instances.Store(instance.Id, ins)
+		resp.EventType = com.CwRefreshAll
+		return resp, nil
 	}
+
+	var isConfigChange bool
+	if ins.Status != com.OnlineStatus {
+		isConfigChange = true
+		resp.EventType = com.CwRefreshAll
+	}
+	if len(ins.ChChange) > 0 {
+		isConfigChange = true
+		resp.EventType = com.CwRefreshAll
+		<-ins.ChChange
+	}
+	ins.Status = com.OnlineStatus
+	ins.Life = 60
 	instances.Store(instance.Id, ins)
 
-	count := 0
-	for {
-		if count >= 45 {
-			break
-		}
-		count++
+	if isConfigChange {
+		return resp, nil
+	}
 
-		//TODO
-
-		time.Sleep(time.Second)
+	select {
+	case <-ins.ChChange:
+		resp.EventType = com.CwRefreshAll
+	case <-time.After(time.Second * 45):
+		resp.EventType = com.CwNothing
 	}
 
 	return resp, nil

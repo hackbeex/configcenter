@@ -2,20 +2,13 @@ package model
 
 import (
 	"github.com/hackbeex/configcenter/server/database"
+	"github.com/hackbeex/configcenter/util/com"
 	"github.com/jinzhu/gorm"
 	uuid "github.com/satori/go.uuid"
 	"time"
 )
 
-type OpType string
-
-const (
-	OpCreate OpType = "create"
-	OpUpdate OpType = "update"
-	OpDelete OpType = "delete"
-)
-
-func RecordTable(db *gorm.DB, table, comment, userId string, op OpType, ids ...string) *gorm.DB {
+func RecordTable(db *gorm.DB, table, comment, userId string, op com.OpType, ids ...string) *gorm.DB {
 	if len(ids) == 0 {
 		return db
 	}

@@ -5,8 +5,8 @@ import (
 )
 
 type Item struct {
-	Key   string
-	Value string
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
 type ConfigTable struct {

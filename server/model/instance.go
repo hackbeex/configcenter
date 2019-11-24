@@ -2,7 +2,9 @@ package model
 
 import (
 	validation "github.com/go-ozzo/ozzo-validation"
+	"github.com/hackbeex/configcenter/server/core"
 	"github.com/hackbeex/configcenter/server/database"
+	"github.com/hackbeex/configcenter/util/com"
 	"github.com/hackbeex/configcenter/util/log"
 	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
@@ -80,13 +82,12 @@ func (m *InstanceModel) List(req *InstanceListReq) (*InstanceListResp, error) {
 }
 
 type ExitInstanceReq struct {
-	NamespaceId string `json:"namespace_id"`
+	InstanceId string `json:"instance_id"`
 }
 
 func (c *ExitInstanceReq) Validate() error {
 	return validation.ValidateStruct(&c,
-		validation.Field(&c.Limit, validation.Max(100)),
-		validation.Field(&c.Offset, validation.Min(0)),
+		validation.Field(&c.InstanceId, validation.Required),
 	)
 }
 
@@ -95,6 +96,15 @@ func (m *InstanceModel) ExitInstance(req *ExitInstanceReq) error {
 		log.Warn(err)
 		return err
 	}
+
+	instances := core.GetServer().Instances
+	ins, ok := instances.Load(req.InstanceId)
+	if !ok {
+		return nil
+	}
+	ins.Life = 0
+	ins.Status = com.OfflineStatus
+	instances.Store(req.InstanceId, ins)
 
 	return nil
 }

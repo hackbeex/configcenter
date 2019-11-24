@@ -14,11 +14,12 @@ import (
 )
 
 type Client struct {
-	InstanceId string
-	Host       string
-	Port       int
-	Cluster    string
-	Env        com.EnvType
+	Host    string
+	Port    int
+	Cluster string
+	Env     com.EnvType
+
+	instanceId string
 
 	discover discoverInfo
 	server   serverInfo
@@ -154,14 +155,14 @@ func (c *Client) WatchServerExit() {
 }
 
 func (c *Client) DoServerExit() error {
-	if c.InstanceId == "" {
+	if c.instanceId == "" {
 		log.Warn("config client do not have instance id")
 		return nil
 	}
 	data, _ := json.Marshal(map[string]interface{}{
-		"instance_id": c.InstanceId,
+		"instance_id": c.instanceId,
 	})
-	url := fmt.Sprintf("%s:%d/api/v1/instance/exit", c.server.Host, c.server.Port)
+	url := fmt.Sprintf("%s:%d/api/v1/client/exit", c.server.Host, c.server.Port)
 	_, err := util.HttpPostJson(url, data)
 	if err != nil {
 		log.Error(err)

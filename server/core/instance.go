@@ -5,6 +5,11 @@ import (
 	"sync"
 )
 
+type ChangeConfig struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
 type Instance struct {
 	Id      string
 	AppId   string
@@ -13,6 +18,10 @@ type Instance struct {
 	Port    int
 	Status  com.RunStatus
 	Life    int
+
+	ChChange chan bool
+	//ChReady bool
+	//ChData  chan map[com.OpType][]ChangeConfig
 }
 
 type InstanceTable struct {

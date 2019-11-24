@@ -3,6 +3,7 @@ package model
 import (
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/hackbeex/configcenter/server/database"
+	"github.com/hackbeex/configcenter/util/com"
 	"github.com/hackbeex/configcenter/util/log"
 	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
@@ -64,7 +65,7 @@ func (a *AppModel) Create(req *CreateAppReq) (*CreateAppResp, error) {
 		"update_by":   req.UserId,
 		"update_time": now,
 	})
-	tx = RecordTable(tx, "app", "", req.UserId, OpCreate, id)
+	tx = RecordTable(tx, "app", "", req.UserId, com.OpCreate, id)
 	if tx.Error != nil {
 		tx.Rollback()
 		log.Error(tx.Error)
@@ -144,17 +145,24 @@ func (a *AppModel) List(req *AppListReq) (*AppListResp, error) {
 }
 
 type AppDetailReq struct {
-	Id string `json:"id"`
+	AppId string `json:"app_id"`
 }
 
 func (c *AppDetailReq) Validate() error {
 	return validation.ValidateStruct(&c,
-		validation.Field(&c.Id, validation.Required, validation.Length(32, 32)),
+		validation.Field(&c.AppId, validation.Required, validation.Length(32, 32)),
 	)
 }
 
+type NamespaceItem struct {
+	Id      string `json:"id"`
+	Name    string `json:"name"`
+	Comment string `json:"comment"`
+}
+
 type AppDetailResp struct {
-	AppItem
+	App        AppItem         `json:"app"`
+	Namespaces []NamespaceItem `json:"namespaces"`
 }
 
 func (a *AppModel) Detail(req *AppDetailReq) (*AppDetailResp, error) {
@@ -167,7 +175,14 @@ func (a *AppModel) Detail(req *AppDetailReq) (*AppDetailResp, error) {
 
 	db := database.Conn()
 	db = db.Table("app").Select("id,name,comment,create_by,create_time,update_by,update_time").
-		Where("id=? AND is_delete=0", req.Id).Scan(&resp)
+		Where("id=? AND is_delete=0", req.AppId).Scan(&resp.App)
+	if db.Error != nil {
+		log.Error(db.Error)
+		return resp, errors.Wrap(db.Error, "db error")
+	}
+
+	db = database.Conn()
+	db = db.Table("namespace").Select("id,name,comment").Where("app_id=? AND is_delete=0", req.AppId).Find(&resp.Namespaces)
 	if db.Error != nil {
 		log.Error(db.Error)
 		return resp, errors.Wrap(db.Error, "db error")

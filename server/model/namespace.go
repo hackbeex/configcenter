@@ -3,6 +3,7 @@ package model
 import (
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/hackbeex/configcenter/server/database"
+	"github.com/hackbeex/configcenter/util/com"
 	"github.com/hackbeex/configcenter/util/log"
 	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
@@ -83,7 +84,7 @@ func (a *NamespaceModel) Create(req *CreateNamespaceReq) (*CreateNamespaceResp, 
 		"update_by":   req.UserId,
 		"update_time": now,
 	})
-	tx = RecordTable(tx, "namespace", id, "", OpCreate, req.UserId)
+	tx = RecordTable(tx, "namespace", id, "", com.OpCreate, req.UserId)
 	if tx.Error != nil {
 		tx.Rollback()
 		log.Error(tx.Error)

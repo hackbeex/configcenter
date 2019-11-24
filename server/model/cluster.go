@@ -3,6 +3,7 @@ package model
 import (
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/hackbeex/configcenter/server/database"
+	"github.com/hackbeex/configcenter/util/com"
 	"github.com/hackbeex/configcenter/util/log"
 	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
@@ -80,7 +81,7 @@ func (a *ClusterModel) Create(req *CreateClusterReq) (*CreateClusterResp, error)
 		"update_by":   req.UserId,
 		"update_time": now,
 	})
-	tx = RecordTable(tx, "cluster", "", req.UserId, OpCreate, id)
+	tx = RecordTable(tx, "cluster", "", req.UserId, com.OpCreate, id)
 	if tx.Error != nil {
 		tx.Rollback()
 		log.Error(tx.Error)

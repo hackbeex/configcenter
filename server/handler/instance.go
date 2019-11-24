@@ -22,21 +22,3 @@ func GetInstanceList(c *gin.Context) {
 
 	response.Data(c, res)
 }
-
-func ExitInstance(c *gin.Context) {
-	var req model.ExitInstanceReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, err)
-		return
-	}
-
-	instance := model.InstanceModel{}
-	err := instance.ExitInstance(&req)
-	if err != nil {
-		response.Error(c, err)
-		return
-	}
-
-	response.OK(c)
-
-}

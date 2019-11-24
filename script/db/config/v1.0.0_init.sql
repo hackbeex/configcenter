@@ -155,16 +155,13 @@ DROP TABLE IF EXISTS instance_release;
 CREATE TABLE instance_release (
   id INT(10) unsigned NOT NULL COMMENT '',
   instance_id CHAR(36) NOT NULL COMMENT '',
-  app_id CHAR(32) NOT NULL COMMENT '',
-  cluster_id CHAR(32) NOT NULL COMMENT '',
-  namespace_id CHAR(32) NOT NULL  COMMENT '',
-  release_id CHAR(32) NOT NULL DEFAULT '' COMMENT '',
-  release_time INT NOT NULL COMMENT '',
+  release_history_id CHAR(32) NOT NULL DEFAULT '' COMMENT '',
+  is_delete TINYINT(1) NOT NULL DEFAULT 0 COMMENT '',
   create_time INT NOT NULL COMMENT '',
   update_time INT NULL COMMENT '',
   PRIMARY KEY (id),
-  UNIQUE KEY idx_group (instance_id,app_id,namespace_id),
-  KEY idx_release_id (release_id),
+  KEY idx_instance_id (instance_id),
+  KEY idx_release_history_id (release_history_id),
   KEY idx_update_time (update_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='instance release record';
 

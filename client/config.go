@@ -17,83 +17,99 @@ func (c *Client) initConfig() error {
 	}
 
 	for _, item := range res.List {
-		c.config.Store(item.Key, &Item{
-			Key:   item.Key,
-			Value: item.Value,
-		})
+		c.config.Store(item.Key, &item)
 	}
 
 	return nil
 }
 
-type ConfigItem struct {
-	Id          string `json:"id"`
-	NamespaceId string `json:"namespace_id"`
-	Key         string `json:"key"`
-	Value       string `json:"value"`
-	Comment     string `json:"comment"`
-	OrderNum    int    `json:"order_num"`
-	IsDelete    int    `json:"is_delete"`
-	CreateBy    string `json:"create_by"`
-	CreateTime  int    `json:"create_time"`
-	UpdateBy    string `json:"update_by"`
-	UpdateTime  int    `json:"update_time"`
-	IsRelease   int    `json:"is_release"`
-	Status      string `json:"status"`
-}
-
 type ConfigListResp struct {
-	List []ConfigItem `json:"list"`
+	List []Item `json:"list"`
 }
 
 func (c *Client) GetConfigList() (*ConfigListResp, error) {
-	type fullResp struct {
-		response.BaseResult
-		Data ConfigListResp `json:"data"`
+	type configListItem struct {
+		Items []Item `json:"items"`
 	}
-	var listResp fullResp
+	type configListByAppResp struct {
+		List []configListItem `json:"list"`
+	}
+	type httpResp struct {
+		response.BaseResult
+		Data configListByAppResp `json:"data"`
+	}
+	var fullResp httpResp
+	var listResp = &ConfigListResp{
+		List: []Item{},
+	}
 
-	url := fmt.Sprintf("%s:%d/api/v1/config/list", c.server.Host, c.server.Port)
+	url := fmt.Sprintf("%s:%d/api/v1/client/config/list", c.server.Host, c.server.Port)
 	res, err := util.HttpPostJson(url, nil)
 	if err != nil {
 		log.Error(err)
-		return &listResp.Data, err
+		return listResp, err
 	}
-	err = util.HttpParseResponseToJson(res, &listResp)
+	err = util.HttpParseResponseToJson(res, &fullResp)
 	if err != nil {
 		log.Error(err)
-		return &listResp.Data, err
+		return listResp, err
 	}
-	return &listResp.Data, nil
+
+	for _, item := range fullResp.Data.List {
+		for _, v := range item.Items {
+			listResp.List = append(listResp.List, v)
+		}
+	}
+
+	return listResp, nil
 }
 
-func (c *Client) fetchConfigChange() (config, error) {
+type WatchConfigResp struct {
+	InstanceId string                   `json:"instance_id"`
+	EventType  com.ConfigWatchEventType `json:"event_type"`
+	//Configs    map[com.OpType][]core.ChangeConfig `json:"configs"`
+}
+
+func (c *Client) fetchConfigEvent() (*WatchConfigResp, error) {
+	resp := &WatchConfigResp{}
+
 	if c.server.Status != com.OnlineStatus {
 		log.Warn("server is not online, can not watch config")
-		return nil
+		return resp, nil
 	}
 
-	url := fmt.Sprintf("%s:%d/api/v1/config/watch", c.server.Host, c.server.Port)
+	url := fmt.Sprintf("%s:%d/api/v1/client/config/watch", c.server.Host, c.server.Port)
 	res, err := util.HttpPostJson(url, nil)
 	if err != nil {
 		log.Error(err)
-		return svr, err
+		return resp, err
 	}
-
 	var watchResp struct {
 		response.BaseResult
-		InstanceId string `json:"instance_id"`
+		Data WatchConfigResp `json:"data"`
 	}
 	err = util.HttpParseResponseToJson(res, &watchResp)
 	if err != nil {
 		log.Error(err)
-		return svr, err
+		return resp, err
 	}
 
-	c.InstanceId = watchResp.InstanceId
-	//todo
+	resp = &watchResp.Data
+	c.instanceId = resp.InstanceId
 
-	return svr, nil
+	if resp.EventType != com.CwNothing {
+		log.Infof("watch config event type: %s", resp.EventType)
+	}
+	if resp.EventType == com.CwRefreshAll {
+		config, err := c.GetConfigList()
+		if err != nil {
+			log.Error(err)
+			return resp, err
+		}
+
+	}
+
+	return resp, nil
 }
 
 func (c *Client) watchConfig() {
@@ -105,7 +121,7 @@ func (c *Client) watchConfig() {
 	}()
 
 	for {
-		cf, err := c.fetchConfigChange()
+		cf, err := c.fetchConfigEvent()
 		if err != nil {
 			log.Error(err)
 			if c.watchConfigInterval >= time.Minute*5 {

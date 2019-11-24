@@ -115,7 +115,6 @@ func checkInstances() {
 				instances.Store(instanceId, val)
 			}
 			return true
-
 		})
 		time.Sleep(time.Second)
 	}
@@ -124,6 +123,14 @@ func checkInstances() {
 func runServer() {
 	r := gin.Default()
 
+	//TODO： portal auth, client token
+
+	//instance api
+	r.POST("/api/v1/client/config/list", handler.GetClientConfigList)
+	r.POST("/api/v1/client/config/watch", handler.WatchConfig)
+	r.POST("/api/v1/client/exit", handler.ExitClient)
+
+	//portal api
 	r.POST("/api/v1/app/list", handler.GetAppList)
 	r.POST("/api/v1/app/detail", handler.GetAppDetail)
 	r.POST("/api/v1/app/create", handler.CreateApp)
@@ -139,9 +146,7 @@ func runServer() {
 	r.POST("/api/v1/config/release/history", handler.GetConfigReleaseHistory)
 	r.POST("/api/v1/config/rollback", handler.RollbackConfig)
 	r.POST("/api/v1/config/sync", handler.SyncConfig)
-	r.POST("/api/v1/config/watch", handler.WatchConfig)
 	r.POST("/api/v1/instance/list", handler.GetInstanceList)
-	r.POST("/api/v1/instance/exit", handler.ExitInstance)
 
 	conf := local.Conf.Server
 	addr := fmt.Sprintf("%s:%d", conf.ListenHost, conf.ListenPort)
