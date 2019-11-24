@@ -17,7 +17,7 @@ import (
 )
 
 func Run() {
-	env := os.Getenv("ConfigCenterEnv")
+	env := os.Getenv(com.SysEnvUseEnv)
 
 	registerServer(env)
 

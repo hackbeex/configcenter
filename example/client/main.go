@@ -1,4 +1,4 @@
-package client
+package main
 
 import (
 	"github.com/hackbeex/configcenter/client"
@@ -6,12 +6,15 @@ import (
 )
 
 func main() {
-	cl := &client.Client{
-		Host:    "127.0.0.1",
-		Port:    8888,
-		Cluster: "default",
-		Env:     "dev",
-	}
+	cl := client.New(&client.Config{
+		ClientHost:    "127.0.0.1",
+		ClientPort:    8888,
+		ClientCluster: "default",
+		ClientApp:     "test_app",
+		ClientEnv:     "dev",
+		DiscoverHost:  "127.0.0.1",
+		DiscoverPort:  9310,
+	})
 	if err := cl.Register(); err != nil {
 		log.Fatal(err)
 	}
@@ -25,7 +28,7 @@ func main() {
 	log.Info("configs: ", configs)
 
 	val, ok := cl.GetConfig("test", "123")
-	log.Infof("is_exsit: %T, value: %s", ok, val)
+	log.Infof("is_exist: %t, value: %s", ok, val)
 
 	cl.ListenConfig("test", func(param *client.CallbackParam) {
 		log.Infof("listen: key:%s, val:%s, type: %s", param.Key, param.NewVal, param.OpType)

@@ -17,6 +17,7 @@ type Client struct {
 	Host    string
 	Port    int
 	Cluster string
+	App     string
 	Env     com.EnvType
 
 	instanceId string
@@ -25,7 +26,7 @@ type Client struct {
 	server   serverInfo
 	config   *ConfigTable
 
-	watchConfigChange   bool
+	cache               *Cache
 	watchConfigInterval time.Duration
 	listens             *ListenTable
 }
@@ -47,16 +48,19 @@ type Config struct {
 	ClientHost    string
 	ClientPort    int
 	ClientCluster string
+	ClientApp     string
 	ClientEnv     com.EnvType
 	DiscoverHost  string
 	DiscoverPort  int
 }
 
 func New(cf *Config) *Client {
+	filename := fmt.Sprintf("%s-%s-%s.cache", cf.ClientApp, cf.ClientCluster, cf.ClientEnv)
 	return &Client{
 		Host:    cf.ClientHost,
 		Port:    cf.ClientPort,
 		Env:     cf.ClientEnv,
+		App:     cf.ClientApp,
 		Cluster: cf.ClientCluster,
 		discover: discoverInfo{
 			Host: cf.DiscoverHost,
@@ -64,6 +68,7 @@ func New(cf *Config) *Client {
 		},
 		config:  NewConfigTable(),
 		listens: NewListenTable(),
+		cache:   NewCache(filename),
 	}
 }
 
@@ -77,6 +82,7 @@ func (c *Client) Register() error {
 
 	go c.watchServer()
 	go c.watchConfig()
+	go c.timingPullConfig()
 
 	return nil
 }

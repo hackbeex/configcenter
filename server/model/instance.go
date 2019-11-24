@@ -14,66 +14,42 @@ type InstanceModel struct {
 }
 
 type InstanceListReq struct {
-	Limit  int `json:"limit"`
-	Offset int `json:"offset"`
+	AppId     string `json:"app_id"`
+	ClusterId string `json:"cluster"`
 }
 
 func (c *InstanceListReq) Validate() error {
 	return validation.ValidateStruct(&c,
-		validation.Field(&c.Limit, validation.Max(100)),
-		validation.Field(&c.Offset, validation.Min(0)),
+		validation.Field(&c.AppId, validation.Required),
+		validation.Field(&c.ClusterId, validation.Required),
 	)
 }
 
 type InstanceItem struct {
 	Id         string `json:"id"`
-	Name       string `json:"name"`
-	Comment    string `json:"comment"`
-	CreateBy   string `json:"create_by"`
+	Host       string `json:"host"`
+	Port       int    `json:"port"`
 	CreateTime int    `json:"create_time"`
-	UpdateBy   string `json:"update_by"`
 	UpdateTime int    `json:"update_time"`
 }
 
 type InstanceListResp struct {
-	Offset int            `json:"offset"`
-	Total  int            `json:"total"`
-	List   []InstanceItem `json:"list"`
+	List []InstanceItem `json:"list"`
 }
 
 func (m *InstanceModel) List(req *InstanceListReq) (*InstanceListResp, error) {
 	resp := &InstanceListResp{
-		List:   []InstanceItem{},
-		Offset: -1,
+		List: []InstanceItem{},
 	}
 
 	if err := req.Validate(); err != nil {
 		log.Warn(err)
 		return resp, err
 	}
-	if req.Limit <= 0 {
-		req.Limit = 20
-	}
-
-	//TODO instance op
 
 	db := database.Conn()
-	db = db.Table("app").Select("id,name,comment,create_by,create_time,update_by,update_time").
-		Where("is_delete=0").Offset(req.Offset).Limit(req.Limit).Find(&resp.List)
+	db = db.Table("instance").Select("id,host,port,create_time,update_time").Where("is_delete=0").Find(&resp.List)
 	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
-		log.Error(db.Error)
-		return resp, errors.Wrap(db.Error, "db error")
-	}
-
-	if len(resp.List) < req.Limit {
-		resp.Offset = -1
-	} else {
-		resp.Offset = req.Offset + len(resp.List)
-	}
-
-	db = database.Conn()
-	db = db.Table("app").Where("is_delete=0").Count(&resp.Total)
-	if db.Error != nil {
 		log.Error(db.Error)
 		return resp, errors.Wrap(db.Error, "db error")
 	}

@@ -1,11 +1,13 @@
 package client
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/hackbeex/configcenter/util"
 	"github.com/hackbeex/configcenter/util/com"
 	"github.com/hackbeex/configcenter/util/log"
 	"github.com/hackbeex/configcenter/util/response"
+	"os"
 	"time"
 )
 
@@ -40,12 +42,34 @@ func (c *Client) ListenConfig(key string, callback ListenCallback) {
 func (c *Client) initConfig() error {
 	res, err := c.fetchConfigList()
 	if err != nil {
-		log.Error(err)
-		return err
-	}
+		if os.Getenv(com.SysEnvUseCache) != "1" {
+			log.Error(err)
+			return err
+		}
+		log.Warn(err)
 
-	for _, item := range res.List {
-		c.config.Store(item.Key, &item)
+		config, err := c.cache.Load()
+		if err != nil {
+			return err
+		}
+
+		for key, val := range config {
+			c.config.Store(key, &Item{
+				Key:   key,
+				Value: val,
+			})
+		}
+	} else {
+		config := map[string]string{}
+		for _, item := range res.List {
+			c.config.Store(item.Key, &item)
+			config[item.Key] = item.Value
+		}
+
+		if err := c.cache.Store(config); err != nil {
+			log.Error(err)
+			return err
+		}
 	}
 
 	return nil
@@ -105,8 +129,15 @@ func (c *Client) fetchConfigEvent() (*WatchConfigResp, error) {
 		return resp, nil
 	}
 
+	req, _ := json.Marshal(map[string]interface{}{
+		"host":    c.Host,
+		"port":    c.Port,
+		"app":     c.App,
+		"cluster": c.Cluster,
+		"env":     c.Env,
+	})
 	url := fmt.Sprintf("%s:%d/api/v1/client/config/watch", c.server.Host, c.server.Port)
-	res, err := util.HttpPostJson(url, nil)
+	res, err := util.HttpPostJson(url, req)
 	if err != nil {
 		log.Error(err)
 		return resp, err
@@ -155,55 +186,83 @@ func (c *Client) watchConfig() {
 		}
 		c.watchConfigInterval = 0
 
-		log.Info(cf)
-
 		if cf.EventType == com.CwRefreshAll {
-			res, err := c.fetchConfigList()
-			if err != nil {
-				log.Error(err)
+			if err := c.refreshConfig(); err != nil {
 				continue
 			}
-			old, err := c.GetAllConfig()
-			if err != nil {
-				log.Error(err)
-				continue
-			}
-			type updateItem struct {
-				OldVal string
-				NewVal string
-			}
-			newMap := map[string]string{}
-			for _, item := range res.List {
-				c.config.Store(item.Key, &item)
-				newMap[item.Key] = item.Value
-			}
-			for key, val := range old.List {
-				if newVal, ok := newMap[key]; !ok {
-					c.listens.Call(key, &CallbackParam{
-						Key:    key,
-						NewVal: val,
-						OldVal: val,
-						OpType: com.OpDelete,
-					}, true)
-				} else if newVal != val {
-					c.listens.Call(key, &CallbackParam{
-						Key:    key,
-						NewVal: newVal,
-						OldVal: val,
-						OpType: com.OpUpdate,
-					}, true)
-				}
-			}
-			for key, newVal := range newMap {
-				if _, ok := old.List[key]; !ok {
-					c.listens.Call(key, &CallbackParam{
-						Key:    key,
-						NewVal: newVal,
-						OldVal: newVal,
-						OpType: com.OpCreate,
-					}, true)
-				}
-			}
+		}
+	}
+}
+
+func (c *Client) refreshConfig() error {
+	res, err := c.fetchConfigList()
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	old, err := c.GetAllConfig()
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+
+	var isChange = false
+	newMap := map[string]string{}
+	for _, item := range res.List {
+		c.config.Store(item.Key, &item)
+		newMap[item.Key] = item.Value
+	}
+	for key, val := range old.List {
+		if newVal, ok := newMap[key]; !ok {
+			isChange = true
+			c.listens.Call(key, &CallbackParam{
+				Key:    key,
+				NewVal: val,
+				OldVal: val,
+				OpType: com.OpDelete,
+			}, true)
+		} else if newVal != val {
+			isChange = true
+			c.listens.Call(key, &CallbackParam{
+				Key:    key,
+				NewVal: newVal,
+				OldVal: val,
+				OpType: com.OpUpdate,
+			}, true)
+		}
+	}
+	for key, newVal := range newMap {
+		if _, ok := old.List[key]; !ok {
+			isChange = true
+			c.listens.Call(key, &CallbackParam{
+				Key:    key,
+				NewVal: newVal,
+				OldVal: newVal,
+				OpType: com.OpCreate,
+			}, true)
+		}
+	}
+	if isChange {
+		if err := c.cache.Store(newMap); err != nil {
+			log.Error(err)
+		}
+	}
+	return nil
+}
+
+func (c *Client) timingPullConfig() {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Warn("timing pull config recover: ", err)
+			c.timingPullConfig()
+		}
+	}()
+
+	for {
+		time.Sleep(time.Minute * 5)
+
+		if err := c.refreshConfig(); err != nil {
+			continue
 		}
 	}
 }
