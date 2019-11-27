@@ -36,6 +36,9 @@ func NewInstanceTable() *InstanceTable {
 
 func (t *InstanceTable) Load(instanceId string) (*Instance, bool) {
 	val, ok := t.table.Load(instanceId)
+	if !ok {
+		return nil, ok
+	}
 	return val.(*Instance), ok
 }
 
@@ -51,9 +54,4 @@ func (t *InstanceTable) Range(f func(instanceId string, val *Instance) bool) {
 	t.table.Range(func(k, v interface{}) bool {
 		return f(k.(string), v.(*Instance))
 	})
-}
-
-func (t *InstanceTable) LoadOrStore(instanceId string, val *Instance) (*Instance, bool) {
-	res, loaded := t.table.LoadOrStore(instanceId, val)
-	return res.(*Instance), loaded
 }

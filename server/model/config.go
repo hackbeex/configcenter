@@ -754,6 +754,8 @@ func (c *ConfigModel) Release(req *ReleaseConfigReq) error {
 		tx.Commit()
 	}
 
+	go c.notifyChange()
+
 	return nil
 }
 
@@ -1380,4 +1382,14 @@ func (c *ConfigModel) Watch(req *WatchConfigReq) (*WatchConfigResp, error) {
 	}
 
 	return resp, nil
+}
+
+func (c *ConfigModel) notifyChange() {
+	server := core.GetServer()
+	server.Instances.Range(func(instanceId string, val *core.Instance) bool {
+		if len(val.ChChange) == 0 {
+			val.ChChange <- true
+		}
+		return true
+	})
 }

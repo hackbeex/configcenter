@@ -122,7 +122,7 @@ func (c *Client) watchServer() {
 
 func (c *Client) fetchMatchedServer() (serverInfo, error) {
 	var svr serverInfo
-	url := fmt.Sprintf("%s:%d/api/v1/discover/server/fetch", c.discover.Host, c.discover.Port)
+	url := fmt.Sprintf("http://%s:%d/api/v1/discover/server/fetch", c.discover.Host, c.discover.Port)
 	res, err := util.HttpPostJson(url, nil)
 	if err != nil {
 		log.Error(err)
@@ -171,7 +171,7 @@ func (c *Client) DoServerExit() error {
 	data, _ := json.Marshal(map[string]interface{}{
 		"instance_id": c.instanceId,
 	})
-	url := fmt.Sprintf("%s:%d/api/v1/client/exit", c.server.Host, c.server.Port)
+	url := fmt.Sprintf("http://%s:%d/api/v1/client/exit", c.server.Host, c.server.Port)
 	_, err := util.HttpPostJson(url, data)
 	if err != nil {
 		log.Error(err)

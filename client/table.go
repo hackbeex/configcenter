@@ -21,6 +21,9 @@ func NewConfigTable() *ConfigTable {
 
 func (t *ConfigTable) Load(key string) (*Item, bool) {
 	val, ok := t.table.Load(key)
+	if !ok {
+		return nil, ok
+	}
 	return val.(*Item), ok
 }
 
@@ -36,9 +39,4 @@ func (t *ConfigTable) Range(f func(key string, val *Item) bool) {
 	t.table.Range(func(k, v interface{}) bool {
 		return f(k.(string), v.(*Item))
 	})
-}
-
-func (t *ConfigTable) LoadOrStore(key string, val *Item) (*Item, bool) {
-	res, loaded := t.table.LoadOrStore(key, val)
-	return res.(*Item), loaded
 }

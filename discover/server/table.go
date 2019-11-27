@@ -26,6 +26,9 @@ func NewTable(store *store.Store) *Table {
 
 func (t *Table) Load(key IdKey) (*Server, bool) {
 	val, ok := t.table.Load(key)
+	if !ok {
+		return nil, ok
+	}
 	return val.(*Server), ok
 }
 
@@ -41,11 +44,6 @@ func (t *Table) Range(f func(key IdKey, val *Server) bool) {
 	t.table.Range(func(k, v interface{}) bool {
 		return f(k.(IdKey), v.(*Server))
 	})
-}
-
-func (t *Table) LoadOrStore(key IdKey, val *Server) (*Server, bool) {
-	res, loaded := t.table.LoadOrStore(key, val)
-	return res.(*Server), loaded
 }
 
 func InitTable(store *store.Store) *Table {
@@ -85,6 +83,7 @@ func InitTable(store *store.Store) *Table {
 			log.Warn("invalid attr in server: ", attr)
 		}
 	}
+	log.Debug("servers: ", servers)
 	return servers
 }
 
@@ -93,7 +92,8 @@ func (t *Table) GetStore() *store.Store {
 }
 
 func (t *Table) RefreshServerById(key IdKey) error {
-	resp, err := t.store.GetKeyValueWithPrefix(KeyServerInstantPrefix + string(key))
+	fullKey := KeyServerInstantPrefix + string(key) + "/"
+	resp, err := t.store.GetKeyValueWithPrefix(fullKey)
 	if err != nil {
 		log.Error(err)
 		return err
@@ -107,22 +107,23 @@ func (t *Table) RefreshServerById(key IdKey) error {
 	}
 
 	for _, kv := range resp.Kvs {
-		keyStr := string(bytes.TrimPrefix(kv.Key, []byte(key)))
+		keyStr := string(bytes.TrimPrefix(kv.Key, []byte(fullKey)))
 		switch keyStr {
 		case KeyServerAttrHost:
-			svr.Host = keyStr
+			svr.Host = string(kv.Value)
 		case KeyServerAttrPost:
-			svr.Port, _ = strconv.Atoi(keyStr)
+			svr.Port, _ = strconv.Atoi(string(kv.Value))
 		case KeyServerAttrStatus:
-			svr.Status = com.RunStatus(keyStr)
+			svr.Status = com.RunStatus(string(kv.Value))
 		case KeyServerAttrEnv:
-			svr.Env = com.EnvType(keyStr)
+			svr.Env = com.EnvType(string(kv.Value))
 		default:
 			err := errors.Errorf("unsupported server attr %s", keyStr)
 			log.Error(err)
 			return err
 		}
 	}
+	//log.Debug("store server: ", svr)
 	t.Store(key, svr)
 
 	//todo notify clients which uses this server to update server list
@@ -156,9 +157,10 @@ func (t *Table) UpdateStatus(key IdKey, status com.RunStatus) error {
 		log.Error(err)
 		return err
 	}
-	if server.Status == com.OnlineStatus {
+	if status == com.OnlineStatus {
 		server.Life = serverMaxLife
 	} else {
+		log.Debug("server status set: ", status)
 		server.Life = 0
 	}
 
@@ -168,7 +170,7 @@ func (t *Table) UpdateStatus(key IdKey, status com.RunStatus) error {
 	}
 
 	k := KeyServerInstantPrefix + key + "/" + KeyServerAttrStatus
-	_, err := t.store.PutKeyValue(string(k), string(com.OnlineStatus))
+	_, err := t.store.PutKeyValue(string(k), string(status))
 	if err != nil {
 		log.Error(err)
 		return err

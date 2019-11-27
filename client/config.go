@@ -3,11 +3,11 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/hackbeex/configcenter/local"
 	"github.com/hackbeex/configcenter/util"
 	"github.com/hackbeex/configcenter/util/com"
 	"github.com/hackbeex/configcenter/util/log"
 	"github.com/hackbeex/configcenter/util/response"
-	"os"
 	"time"
 )
 
@@ -42,7 +42,7 @@ func (c *Client) ListenConfig(key string, callback ListenCallback) {
 func (c *Client) initConfig() error {
 	res, err := c.fetchConfigList()
 	if err != nil {
-		if os.Getenv(com.SysEnvUseCache) != "1" {
+		if !local.Conf.Server.UseCache {
 			log.Error(err)
 			return err
 		}
@@ -95,7 +95,7 @@ func (c *Client) fetchConfigList() (*ConfigListResp, error) {
 		List: []Item{},
 	}
 
-	url := fmt.Sprintf("%s:%d/api/v1/client/config/list", c.server.Host, c.server.Port)
+	url := fmt.Sprintf("http://%s:%d/api/v1/client/config/list", c.server.Host, c.server.Port)
 	res, err := util.HttpPostJson(url, nil)
 	if err != nil {
 		log.Error(err)
@@ -136,7 +136,7 @@ func (c *Client) fetchConfigEvent() (*WatchConfigResp, error) {
 		"cluster": c.Cluster,
 		"env":     c.Env,
 	})
-	url := fmt.Sprintf("%s:%d/api/v1/client/config/watch", c.server.Host, c.server.Port)
+	url := fmt.Sprintf("http://%s:%d/api/v1/client/config/watch", c.server.Host, c.server.Port)
 	res, err := util.HttpPostJson(url, req)
 	if err != nil {
 		log.Error(err)

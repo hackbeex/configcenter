@@ -1,4 +1,4 @@
-package discover
+package main
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"github.com/hackbeex/configcenter/util/log"
 )
 
-func Run() {
+func main() {
 	meta.InitTable()
 	runServer()
 }

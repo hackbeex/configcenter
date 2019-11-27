@@ -35,8 +35,8 @@ func ServerRegister(c *gin.Context) {
 
 func ServerHeartbeat(c *gin.Context) {
 	var req struct {
-		Id     server.IdKey
-		Status com.RunStatus
+		Id     server.IdKey  `json:"id"`
+		Status com.RunStatus `json:"status"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, err)

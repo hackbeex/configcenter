@@ -26,6 +26,9 @@ func NewTable() *Table {
 
 func (t *Table) Load(key IdKey) (*Server, bool) {
 	val, ok := t.table.Load(key)
+	if !ok {
+		return nil, ok
+	}
 	return val.(*Server), ok
 }
 

@@ -2,7 +2,7 @@ package client
 
 import (
 	"encoding/json"
-	"github.com/hackbeex/configcenter/util/com"
+	"github.com/hackbeex/configcenter/local"
 	"github.com/hackbeex/configcenter/util/log"
 	"io/ioutil"
 	"os"
@@ -23,7 +23,7 @@ func NewCache(filename string) *Cache {
 		version: "1.0.0",
 	}
 
-	dir := os.Getenv(com.SysEnvCacheDir)
+	dir := local.Conf.Server.CacheDir
 	if dir == "" {
 		if runtime.GOOS == "windows" {
 			dir = `C:\opt\data\configcenter\cache\`

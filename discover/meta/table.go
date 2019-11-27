@@ -5,6 +5,7 @@ import (
 	"github.com/hackbeex/configcenter/discover/client"
 	"github.com/hackbeex/configcenter/discover/server"
 	"github.com/hackbeex/configcenter/discover/store"
+	"github.com/hackbeex/configcenter/discover/watcher"
 	"github.com/hackbeex/configcenter/local"
 	"github.com/hackbeex/configcenter/util/log"
 	"time"
@@ -53,7 +54,7 @@ func InitTable() {
 	}
 
 	go runLoop()
-	//go tab.watch(watcher.NewServerWatcher(servers)) //use heartbeat now
+	go tab.watch(watcher.NewServerWatcher(servers))
 }
 
 func GetTable() *Table {

@@ -30,6 +30,9 @@ func NewListenTable() *ListenTable {
 
 func (t *ListenTable) Load(key string) (*Listen, bool) {
 	val, ok := t.table.Load(key)
+	if !ok {
+		return nil, ok
+	}
 	return val.(*Listen), ok
 }
 
@@ -45,11 +48,6 @@ func (t *ListenTable) Range(f func(key string, val *Listen) bool) {
 	t.table.Range(func(k, v interface{}) bool {
 		return f(k.(string), v.(*Listen))
 	})
-}
-
-func (t *ListenTable) LoadOrStore(key string, val *Listen) (*Listen, bool) {
-	res, loaded := t.table.LoadOrStore(key, val)
-	return res.(*Listen), loaded
 }
 
 func (t *ListenTable) AddCallback(key string, callback ListenCallback) {

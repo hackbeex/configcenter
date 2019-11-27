@@ -20,6 +20,7 @@ func runLoop() {
 
 	for {
 		servers.Range(func(key server.IdKey, val *server.Server) bool {
+			//log.Debug("servers loop:", key, val)
 			if val.Life <= 0 {
 				if val.Status == com.OnlineStatus {
 					_ = servers.UpdateStatus(key, com.BreakStatus)

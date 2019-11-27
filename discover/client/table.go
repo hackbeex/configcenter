@@ -42,11 +42,6 @@ func (t *Table) Range(f func(key AppIdKey, val *Client) bool) {
 	})
 }
 
-func (t *Table) LoadOrStore(key AppIdKey, val *Client) (*Client, bool) {
-	res, loaded := t.table.LoadOrStore(key, val)
-	return res.(*Client), loaded
-}
-
 func InitTable(store *store.Store) *Table {
 	resp, err := store.GetKeyValueWithPrefix(KeyClientInstantPrefix)
 	if err != nil {
@@ -84,6 +79,7 @@ func InitTable(store *store.Store) *Table {
 			log.Warn("invalid attr in client: ", attr)
 		}
 	}
+	log.Debug("clients: ", clients)
 	return clients
 }
 

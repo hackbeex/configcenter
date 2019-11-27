@@ -1,4 +1,4 @@
-package server
+package main
 
 import (
 	"encoding/json"
@@ -16,10 +16,8 @@ import (
 	"time"
 )
 
-func Run() {
-	env := os.Getenv(com.SysEnvUseEnv)
-
-	registerServer(env)
+func main() {
+	registerServer()
 
 	go exitServer()
 
@@ -30,29 +28,26 @@ func Run() {
 	runServer()
 }
 
-func registerServer(env string) {
-	type req struct {
-		Id   string `json:"id"`
-		Host string `json:"host"`
-		Port int    `json:"port"`
-		Env  string `json:"env"`
-	}
+func registerServer() {
 	conf := local.Conf.Server
+	if conf.Env == "" {
+		log.Fatal("env can not be empty")
+	}
+
 	id, err := util.GetUidFromHardwareAddress(conf.ListenPort)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	core.InitServer(id, env, conf.ListenHost, conf.ListenPort)
-
-	data, _ := json.Marshal(req{
-		Id:   id,
-		Host: conf.ListenHost,
-		Port: conf.ListenPort,
-		Env:  env,
+	core.InitServer(id, conf.Env, conf.ListenHost, conf.ListenPort)
+	data, _ := json.Marshal(map[string]interface{}{
+		"id":   id,
+		"host": conf.ListenHost,
+		"port": conf.ListenPort,
+		"env":  conf.Env,
 	})
 	discover := local.Conf.Discover
-	url := fmt.Sprintf("%s:%d/api/v1/discover/server/register", discover.ListenHost, discover.ListenPort)
+	url := fmt.Sprintf("http://%s:%d/api/v1/discover/server/register", discover.ListenHost, discover.ListenPort)
 	_, err = util.HttpPostJson(url, data)
 	if err != nil {
 		log.Fatal(err)
@@ -73,7 +68,7 @@ func exitServer() {
 
 func heartbeat(online bool) error {
 	discover := local.Conf.Discover
-	url := fmt.Sprintf("%s:%d/api/v1/discover/server/heartbeat", discover.ListenHost, discover.ListenPort)
+	url := fmt.Sprintf("http://%s:%d/api/v1/discover/server/heartbeat", discover.ListenHost, discover.ListenPort)
 	status := com.OnlineStatus
 	if !online {
 		status = com.OfflineStatus
@@ -85,7 +80,7 @@ func heartbeat(online bool) error {
 	})
 	_, err := util.HttpPostJson(url, data)
 	if err != nil {
-		log.Error(err)
+		log.Warn(err)
 		return err
 	}
 	return nil
@@ -94,7 +89,7 @@ func heartbeat(online bool) error {
 func reportHeartbeat() {
 	for {
 		if err := heartbeat(true); err != nil {
-			log.Error(err)
+			continue
 		}
 		time.Sleep(time.Second * 10)
 	}

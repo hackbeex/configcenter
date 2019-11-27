@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	defaultLogPath = "./conf.yaml"
+	defaultLogPath = "./../conf.yaml"
 )
 
 type LocalConf struct {
@@ -35,7 +35,12 @@ type LocalConf struct {
 		Name       string `yaml:"Name"`
 		ListenHost string `yaml:"ListenHost"`
 		ListenPort int    `yaml:"ListenPort"`
-		Mysql      struct {
+		Env        string `yaml:"Env"`
+
+		UseCache bool   `yaml:"UseCache"`
+		CacheDir string `yaml:"CacheDir"`
+
+		Mysql struct {
 			User     string `yaml:"User"`
 			Password string `yaml:"Password"`
 			Addr     string `yaml:"Addr"`

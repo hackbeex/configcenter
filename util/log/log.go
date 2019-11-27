@@ -44,11 +44,11 @@ func init() {
 
 	// 设置日志级别
 	config := zap.Config{
-		Level:            zap.NewAtomicLevelAt(getLoggerLevel("debug")),     // 日志级别
-		Development:      true,                                              // 开发模式，堆栈跟踪
-		Encoding:         "console",                                         // 输出格式 console 或 json
-		EncoderConfig:    encoderConfig,                                     // 编码器配置
-		InitialFields:    map[string]interface{}{"service": "configcenter"}, // 初始化字段，如：添加一个服务器名称
+		Level:         zap.NewAtomicLevelAt(getLoggerLevel("debug")), // 日志级别
+		Development:   true,                                          // 开发模式，堆栈跟踪
+		Encoding:      "console",                                     // 输出格式 console 或 json
+		EncoderConfig: encoderConfig,                                 // 编码器配置
+		//InitialFields:    map[string]interface{}{"service": "configcenter"}, // 初始化字段，如：添加一个服务器名称
 		OutputPaths:      []string{"stderr"},
 		ErrorOutputPaths: []string{"stderr"},
 	}
