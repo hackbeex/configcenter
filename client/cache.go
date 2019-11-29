@@ -6,8 +6,8 @@ import (
 	"github.com/hackbeex/configcenter/util/log"
 	"io/ioutil"
 	"os"
-	"runtime"
 	"sync"
+	"syscall"
 )
 
 type Cache struct {
@@ -25,15 +25,24 @@ func NewCache(filename string) *Cache {
 
 	dir := local.Conf.Server.CacheDir
 	if dir == "" {
-		if runtime.GOOS == "windows" {
-			dir = `C:\opt\data\configcenter\cache\`
-		} else {
-			dir = `/opt/data/configcenter/cache/cache/`
-		}
+		dir = "cache/"
 	}
 	cache.dir = dir
 	cache.filename = filename
 	cache.filepath = dir + filename
+
+	_, err := os.Stat(dir)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			log.Fatal("stat fail: ", err)
+		}
+		oldMask := syscall.Umask(0)
+		err := os.Mkdir(dir, 0777)
+		syscall.Umask(oldMask)
+		if err != nil {
+			log.Fatal("mkdir fail: ", err)
+		}
+	}
 
 	fh, err := os.OpenFile(cache.filepath, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {

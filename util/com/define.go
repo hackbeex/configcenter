@@ -13,7 +13,7 @@ type EnvType string
 const (
 	EnvDev  EnvType = "develop"
 	EnvProd EnvType = "product"
-	EnvTest EnvType = "test"
+	EnvTest EnvType = "testing"
 )
 
 type OpType string

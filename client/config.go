@@ -8,6 +8,7 @@ import (
 	"github.com/hackbeex/configcenter/util/com"
 	"github.com/hackbeex/configcenter/util/log"
 	"github.com/hackbeex/configcenter/util/response"
+	"github.com/pkg/errors"
 	"time"
 )
 
@@ -151,11 +152,14 @@ func (c *Client) fetchConfigEvent() (*WatchConfigResp, error) {
 		log.Error(err)
 		return resp, err
 	}
+	if watchResp.Code != 0 {
+		return resp, errors.New(watchResp.Message)
+	}
 
 	resp = &watchResp.Data
 	c.instanceId = resp.InstanceId
 
-	if resp.EventType != com.CwNothing {
+	if resp.EventType != "" && resp.EventType != com.CwNothing {
 		log.Infof("watch config event type: %s", resp.EventType)
 	}
 
@@ -181,6 +185,7 @@ func (c *Client) watchConfig() {
 			} else {
 				c.watchConfigInterval = time.Second
 			}
+			log.Debugf("watch config sleep: %ds", c.watchConfigInterval/time.Second)
 			time.Sleep(c.watchConfigInterval)
 			continue
 		}

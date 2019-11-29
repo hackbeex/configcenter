@@ -6,6 +6,7 @@ import (
 	"github.com/hackbeex/configcenter/util"
 	"github.com/hackbeex/configcenter/util/com"
 	"github.com/hackbeex/configcenter/util/log"
+	"github.com/hackbeex/configcenter/util/response"
 	"github.com/pkg/errors"
 	"os"
 	"os/signal"
@@ -55,7 +56,7 @@ type Config struct {
 }
 
 func New(cf *Config) *Client {
-	filename := fmt.Sprintf("%s-%s-%s.cache", cf.ClientApp, cf.ClientCluster, cf.ClientEnv)
+	filename := fmt.Sprintf("%s.%s.%s.cache.json", cf.ClientApp, cf.ClientCluster, cf.ClientEnv)
 	return &Client{
 		Host:    cf.ClientHost,
 		Port:    cf.ClientPort,
@@ -130,22 +131,26 @@ func (c *Client) fetchMatchedServer() (serverInfo, error) {
 	}
 
 	var listResp struct {
-		List []serverInfo `json:"list"`
+		response.BaseResult
+		Data struct {
+			List []serverInfo `json:"list"`
+		} `json:"data"`
 	}
 	err = util.HttpParseResponseToJson(res, &listResp)
 	if err != nil {
 		log.Error(err)
 		return svr, err
 	}
+	log.Info("server list:", listResp)
 
-	for _, item := range listResp.List {
+	for _, item := range listResp.Data.List {
 		if item.Env == c.Env && item.Status == com.OnlineStatus {
 			svr = item
 			break
 		}
 	}
 	if svr.Id == "" {
-		err := errors.New("no online server find")
+		err := errors.New("no discover server online")
 		log.Warn(err)
 		return svr, err
 	}

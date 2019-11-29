@@ -42,6 +42,7 @@ func GetUidFromHardwareAddress(port int) (string, error) {
 }
 
 func HttpPostJson(url string, data []byte) (*http.Response, error) {
+	log.Debugf("request url[%s], data[%s]", url, string(data))
 	return http.Post(url, "application/json", bytes.NewReader(data))
 }
 
@@ -51,6 +52,7 @@ func HttpParseResponseToJson(res *http.Response, resp interface{}) error {
 		log.Error(err)
 		return err
 	}
+	log.Debug("request body: ", string(body))
 	err = json.Unmarshal(body, resp)
 	if err != nil {
 		log.Error(err)

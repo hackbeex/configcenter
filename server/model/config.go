@@ -29,7 +29,7 @@ type ConfigDetailReq struct {
 }
 
 func (c *ConfigDetailReq) Validate() error {
-	return validation.ValidateStruct(&c,
+	return validation.ValidateStruct(c,
 		validation.Field(&c.Id, validation.Required, validation.Length(32, 32)),
 	)
 }
@@ -76,7 +76,7 @@ type ConfigListReq struct {
 }
 
 func (c *ConfigListReq) Validate() error {
-	return validation.ValidateStruct(&c,
+	return validation.ValidateStruct(c,
 		validation.Field(&c.NamespaceId, validation.Required, validation.Length(32, 32)),
 	)
 }
@@ -183,7 +183,7 @@ type ConfigListByAppReq struct {
 }
 
 func (c *ConfigListByAppReq) Validate() error {
-	return validation.ValidateStruct(&c,
+	return validation.ValidateStruct(c,
 		validation.Field(&c.AppId, validation.Required, validation.Length(32, 32)),
 	)
 }
@@ -300,7 +300,7 @@ type CreateConfigReq struct {
 }
 
 func (c *CreateConfigReq) Validate() error {
-	return validation.ValidateStruct(&c,
+	return validation.ValidateStruct(c,
 		validation.Field(&c.NamespaceId, validation.Required, validation.Length(32, 32)),
 		validation.Field(&c.Key, validation.Required, validation.Length(1, 128)),
 		validation.Field(&c.Comment, validation.Length(1, 255)),
@@ -454,7 +454,7 @@ type UpdateConfigReq struct {
 }
 
 func (c *UpdateConfigReq) Validate() error {
-	return validation.ValidateStruct(&c,
+	return validation.ValidateStruct(c,
 		validation.Field(&c.Id, validation.Required, validation.Length(32, 32)),
 		validation.Field(&c.Key, validation.Required, validation.Length(1, 128)),
 		validation.Field(&c.Comment, validation.Length(1, 255)),
@@ -522,7 +522,7 @@ type DeleteConfigReq struct {
 }
 
 func (c *DeleteConfigReq) Validate() error {
-	return validation.ValidateStruct(&c,
+	return validation.ValidateStruct(c,
 		validation.Field(&c.Id, validation.Required, validation.Length(32, 32)),
 		validation.Field(&c.UserId, validation.Required, validation.Length(32, 32)),
 	)
@@ -577,7 +577,7 @@ type ConfigHistoryReq struct {
 }
 
 func (c *ConfigHistoryReq) Validate() error {
-	return validation.ValidateStruct(&c,
+	return validation.ValidateStruct(c,
 		validation.Field(&c.NamespaceId, validation.Required, validation.Length(32, 32)),
 		validation.Field(&c.Limit, validation.Max(100)),
 		validation.Field(&c.Offset, validation.Min(0)),
@@ -651,7 +651,7 @@ type ReleaseConfigReq struct {
 }
 
 func (c *ReleaseConfigReq) Validate() error {
-	return validation.ValidateStruct(&c,
+	return validation.ValidateStruct(c,
 		validation.Field(&c.NamespaceId, validation.Required, validation.Length(32, 32)),
 		validation.Field(&c.Name, validation.Required, validation.Length(1, 64)),
 		validation.Field(&c.Comment, validation.Length(1, 255)),
@@ -766,7 +766,7 @@ type ConfigReleaseHistoryReq struct {
 }
 
 func (c *ConfigReleaseHistoryReq) Validate() error {
-	return validation.ValidateStruct(&c,
+	return validation.ValidateStruct(c,
 		validation.Field(&c.NamespaceId, validation.Required, validation.Length(32, 32)),
 		validation.Field(&c.Limit, validation.Max(100)),
 		validation.Field(&c.Offset, validation.Min(0)),
@@ -927,7 +927,7 @@ type RollbackConfigReq struct {
 }
 
 func (c *RollbackConfigReq) Validate() error {
-	return validation.ValidateStruct(&c,
+	return validation.ValidateStruct(c,
 		validation.Field(&c.NamespaceId, validation.Required, validation.Length(32, 32)),
 		validation.Field(&c.UserId, validation.Required, validation.Length(32, 32)),
 	)
@@ -1080,7 +1080,7 @@ type SyncConfigReq struct {
 }
 
 func (c *SyncConfigReq) Validate() error {
-	return validation.ValidateStruct(&c,
+	return validation.ValidateStruct(c,
 		validation.Field(&c.FromNamespaceId, validation.Required, validation.Length(32, 32)),
 		validation.Field(&c.ToClusterIds, validation.Required),
 		validation.Field(&c.Keys, validation.Required),
@@ -1260,7 +1260,7 @@ type WatchConfigReq struct {
 }
 
 func (c *WatchConfigReq) Validate() error {
-	return validation.ValidateStruct(&c,
+	return validation.ValidateStruct(c,
 		validation.Field(&c.Host, validation.Required),
 		validation.Field(&c.Port, validation.Required),
 		validation.Field(&c.Cluster, validation.Required),

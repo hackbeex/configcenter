@@ -22,7 +22,7 @@ type CreateClusterReq struct {
 }
 
 func (c *CreateClusterReq) Validate() error {
-	return validation.ValidateStruct(&c,
+	return validation.ValidateStruct(c,
 		validation.Field(&c.AppId, validation.Required, validation.Length(32, 32)),
 		validation.Field(&c.Name, validation.Required, validation.Length(1, 64)),
 		validation.Field(&c.Comment, validation.Length(1, 255)),

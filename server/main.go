@@ -88,9 +88,8 @@ func heartbeat(online bool) error {
 
 func reportHeartbeat() {
 	for {
-		if err := heartbeat(true); err != nil {
-			continue
-		}
+		_ = heartbeat(true)
+
 		time.Sleep(time.Second * 10)
 	}
 }

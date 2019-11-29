@@ -21,7 +21,7 @@ type CreateAppReq struct {
 }
 
 func (c *CreateAppReq) Validate() error {
-	return validation.ValidateStruct(&c,
+	return validation.ValidateStruct(c,
 		validation.Field(&c.Name, validation.Required, validation.Length(1, 64)),
 		validation.Field(&c.Comment, validation.Length(1, 255)),
 		validation.Field(&c.UserId, validation.Required, validation.Length(32, 32)),
@@ -84,7 +84,7 @@ type AppListReq struct {
 }
 
 func (c *AppListReq) Validate() error {
-	return validation.ValidateStruct(&c,
+	return validation.ValidateStruct(c,
 		validation.Field(&c.Limit, validation.Max(100)),
 		validation.Field(&c.Offset, validation.Min(0)),
 	)
@@ -149,7 +149,7 @@ type AppDetailReq struct {
 }
 
 func (c *AppDetailReq) Validate() error {
-	return validation.ValidateStruct(&c,
+	return validation.ValidateStruct(c,
 		validation.Field(&c.AppId, validation.Required, validation.Length(32, 32)),
 	)
 }

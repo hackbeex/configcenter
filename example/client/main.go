@@ -11,7 +11,7 @@ func main() {
 		ClientPort:    8888,
 		ClientCluster: "default",
 		ClientApp:     "test_app",
-		ClientEnv:     "dev",
+		ClientEnv:     "develop",
 		DiscoverHost:  "127.0.0.1",
 		DiscoverPort:  9310,
 	})

@@ -19,7 +19,7 @@ type InstanceListReq struct {
 }
 
 func (c *InstanceListReq) Validate() error {
-	return validation.ValidateStruct(&c,
+	return validation.ValidateStruct(c,
 		validation.Field(&c.AppId, validation.Required),
 		validation.Field(&c.ClusterId, validation.Required),
 	)
@@ -62,7 +62,7 @@ type ExitInstanceReq struct {
 }
 
 func (c *ExitInstanceReq) Validate() error {
-	return validation.ValidateStruct(&c,
+	return validation.ValidateStruct(c,
 		validation.Field(&c.InstanceId, validation.Required),
 	)
 }
