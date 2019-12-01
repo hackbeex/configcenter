@@ -23,10 +23,10 @@ type CreateNamespaceReq struct {
 
 func (c *CreateNamespaceReq) Validate() error {
 	return validation.ValidateStruct(c,
-		validation.Field(&c.ClusterId, validation.Required, validation.Length(32, 32)),
+		validation.Field(&c.ClusterId, validation.Required, validation.Length(36, 36)),
 		validation.Field(&c.Name, validation.Required, validation.Length(1, 64)),
 		validation.Field(&c.Comment, validation.Length(1, 255)),
-		validation.Field(&c.UserId, validation.Required, validation.Length(32, 32)),
+		validation.Field(&c.UserId, validation.Required, validation.Length(36, 36)),
 	)
 }
 
@@ -84,7 +84,7 @@ func (a *NamespaceModel) Create(req *CreateNamespaceReq) (*CreateNamespaceResp, 
 		"update_by":   req.UserId,
 		"update_time": now,
 	})
-	tx = RecordTable(tx, "namespace", id, "", com.OpCreate, req.UserId)
+	tx = RecordTable(tx, "namespace", "", req.UserId, com.OpCreate, id)
 	if tx.Error != nil {
 		tx.Rollback()
 		log.Error(tx.Error)

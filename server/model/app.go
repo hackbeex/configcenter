@@ -24,7 +24,7 @@ func (c *CreateAppReq) Validate() error {
 	return validation.ValidateStruct(c,
 		validation.Field(&c.Name, validation.Required, validation.Length(1, 64)),
 		validation.Field(&c.Comment, validation.Length(1, 255)),
-		validation.Field(&c.UserId, validation.Required, validation.Length(32, 32)),
+		validation.Field(&c.UserId, validation.Required, validation.Length(36, 36)),
 	)
 }
 
@@ -44,7 +44,7 @@ func (a *AppModel) Create(req *CreateAppReq) (*CreateAppResp, error) {
 		Id string
 	}
 	db := database.Conn()
-	db = db.Table("app").Select("name").Where("name=? AND is_delete=0", req.Name).Scan(&existApp)
+	db = db.Table("app").Select("id").Where("name=? AND is_delete=0", req.Name).Scan(&existApp)
 	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
 		log.Error(db.Error)
 		return resp, errors.Wrap(db.Error, "db error")
@@ -150,7 +150,7 @@ type AppDetailReq struct {
 
 func (c *AppDetailReq) Validate() error {
 	return validation.ValidateStruct(c,
-		validation.Field(&c.AppId, validation.Required, validation.Length(32, 32)),
+		validation.Field(&c.AppId, validation.Required, validation.Length(36, 36)),
 	)
 }
 

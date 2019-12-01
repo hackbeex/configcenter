@@ -96,8 +96,12 @@ func (c *Client) fetchConfigList() (*ConfigListResp, error) {
 		List: []Item{},
 	}
 
+	data, _ := json.Marshal(map[string]string{
+		"app":         c.App,
+		"instance_id": c.instanceId,
+	})
 	url := fmt.Sprintf("http://%s:%d/api/v1/client/config/list", c.server.Host, c.server.Port)
-	res, err := util.HttpPostJson(url, nil)
+	res, err := util.HttpPostJson(url, data)
 	if err != nil {
 		log.Error(err)
 		return listResp, err
@@ -105,6 +109,10 @@ func (c *Client) fetchConfigList() (*ConfigListResp, error) {
 	err = util.HttpParseResponseToJson(res, &fullResp)
 	if err != nil {
 		log.Error(err)
+		return listResp, err
+	}
+	if fullResp.Code != 200 {
+		log.Error(fullResp.Message)
 		return listResp, err
 	}
 
@@ -152,7 +160,7 @@ func (c *Client) fetchConfigEvent() (*WatchConfigResp, error) {
 		log.Error(err)
 		return resp, err
 	}
-	if watchResp.Code != 0 {
+	if watchResp.Code != 200 {
 		return resp, errors.New(watchResp.Message)
 	}
 
@@ -177,7 +185,7 @@ func (c *Client) watchConfig() {
 	for {
 		cf, err := c.fetchConfigEvent()
 		if err != nil {
-			log.Error(err)
+			log.Info("watch config error: ", err.Error())
 			if c.watchConfigInterval >= time.Minute*5 {
 				c.watchConfigInterval = time.Minute * 5
 			} else if c.watchConfigInterval > 0 {
@@ -185,7 +193,7 @@ func (c *Client) watchConfig() {
 			} else {
 				c.watchConfigInterval = time.Second
 			}
-			log.Debugf("watch config sleep: %ds", c.watchConfigInterval/time.Second)
+			log.Debugf("watch config error sleep: %ds", c.watchConfigInterval/time.Second)
 			time.Sleep(c.watchConfigInterval)
 			continue
 		}

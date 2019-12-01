@@ -30,7 +30,7 @@ type ConfigDetailReq struct {
 
 func (c *ConfigDetailReq) Validate() error {
 	return validation.ValidateStruct(c,
-		validation.Field(&c.Id, validation.Required, validation.Length(32, 32)),
+		validation.Field(&c.Id, validation.Required, validation.Length(36, 36)),
 	)
 }
 
@@ -77,7 +77,7 @@ type ConfigListReq struct {
 
 func (c *ConfigListReq) Validate() error {
 	return validation.ValidateStruct(c,
-		validation.Field(&c.NamespaceId, validation.Required, validation.Length(32, 32)),
+		validation.Field(&c.NamespaceId, validation.Required, validation.Length(36, 36)),
 	)
 }
 
@@ -160,7 +160,7 @@ func (c *ConfigModel) getLastRelease(namespaceId string) (*lastRelease, error) {
 	}
 	db := database.Conn()
 	db = db.Table("release_history t1").Select("t1.id,t2.config,t1.update_time").
-		Joins("release t2 ON t1.release_id=t2.id AND t2.is_delete=0").
+		Joins("JOIN `release` t2 ON t1.release_id=t2.id AND t2.is_delete=0").
 		Where("t1.namespace_id=? AND t1.op_type=? AND t1.is_delete=0", namespaceId, ReleaseOpNormal).
 		Order("t1.update_time DESC").Limit(1).Scan(&release)
 	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
@@ -168,9 +168,11 @@ func (c *ConfigModel) getLastRelease(namespaceId string) (*lastRelease, error) {
 		return resp, errors.Wrap(db.Error, "db error")
 	}
 
-	if err := json.Unmarshal(release.Config, &resp.Config); err != nil {
-		log.Error(err)
-		return resp, err
+	if len(release.Config) > 0 {
+		if err := json.Unmarshal(release.Config, &resp.Config); err != nil {
+			log.Error(err)
+			return resp, err
+		}
 	}
 	resp.Id = release.Id
 	resp.UpdateTime = release.UpdateTime
@@ -178,13 +180,13 @@ func (c *ConfigModel) getLastRelease(namespaceId string) (*lastRelease, error) {
 }
 
 type ConfigListByAppReq struct {
-	AppId      string `json:"app_id"`
+	App        string `json:"app"`
 	InstanceId string `json:"instance_id"`
 }
 
 func (c *ConfigListByAppReq) Validate() error {
 	return validation.ValidateStruct(c,
-		validation.Field(&c.AppId, validation.Required, validation.Length(32, 32)),
+		validation.Field(&c.App, validation.Required, validation.Length(1, 64)),
 	)
 }
 
@@ -206,25 +208,38 @@ func (c *ConfigModel) ListByApp(req *ConfigListByAppReq) (*ConfigListByAppResp, 
 		List: []ConfigListByAppItem{},
 	}
 
+	var app struct {
+		Id string
+	}
+	db := database.Conn()
+	db = db.Table("app").Select("id").Where("name=? AND is_delete=0", req.App).Scan(&app)
+	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
+		log.Error(db.Error)
+		return resp, errors.Wrap(db.Error, "db error")
+	}
+	if app.Id == "" {
+		return resp, errors.New("app name not exists")
+	}
+
 	if req.InstanceId != "" {
 		var instance struct {
 			Id string
 		}
 		db := database.Conn()
-		db = db.Table("instance").Select("id").Where("id=? AND app_id=? AND is_delete=0", req.InstanceId, req.AppId).Scan(&instance)
+		db = db.Table("instance").Select("id").Where("id=? AND app_id=? AND is_delete=0", req.InstanceId, app.Id).Scan(&instance)
 		if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
 			log.Error(db.Error)
 			return resp, errors.Wrap(db.Error, "db error")
 		}
 		if instance.Id == "" {
-			log.Warnf("instance id[%s] not matches app id[%s]", req.InstanceId, req.AppId)
+			log.Warnf("instance id[%s] not matches app name[%s]", req.InstanceId, req.App)
 			return resp, errors.New("instance id not matches app id")
 		}
 	}
 
-	app := AppModel{}
-	appDetail, err := app.Detail(&AppDetailReq{
-		AppId: req.AppId,
+	appMdl := AppModel{}
+	appDetail, err := appMdl.Detail(&AppDetailReq{
+		AppId: app.Id,
 	})
 	if err != nil {
 		return resp, err
@@ -256,18 +271,21 @@ func (c *ConfigModel) ListByApp(req *ConfigListByAppReq) (*ConfigListByAppResp, 
 	if req.InstanceId != "" {
 		now := time.Now().Unix()
 		var release struct {
-			Id string `json:"id"`
+			Id               string `json:"id"`
+			ReleaseHistoryId string `json:"release_history_id"`
 		}
 		db := database.Conn()
-		db = db.Table("instance_release").Select("id").Where("instance_id=? AND is_delete=0", req.InstanceId).Scan(&release)
+		db = db.Table("instance_release").Select("id,release_history_id").Where("instance_id=? AND is_delete=0", req.InstanceId).Scan(&release)
 		if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
 			log.Error(db.Error)
 			return resp, errors.Wrap(db.Error, "db error")
 		}
 		tx := database.Conn().Begin()
 		if release.Id != "" {
-			tx = tx.Exec("UPDATE instance_release SET release_history_id=?, update_time=? WHERE id=?", lastReleaseId, now, release.Id)
-			tx = RecordTable(tx, "instance_release", "", "", com.OpUpdate, release.Id)
+			if lastReleaseId != release.ReleaseHistoryId {
+				tx = tx.Exec("UPDATE instance_release SET release_history_id=?, update_time=? WHERE id=?", lastReleaseId, now, release.Id)
+				tx = RecordTable(tx, "instance_release", "", "", com.OpUpdate, release.Id)
+			}
 		} else {
 			id := uuid.NewV1().String()
 			tx = database.Insert(tx, "instance_release", map[string]interface{}{
@@ -301,10 +319,10 @@ type CreateConfigReq struct {
 
 func (c *CreateConfigReq) Validate() error {
 	return validation.ValidateStruct(c,
-		validation.Field(&c.NamespaceId, validation.Required, validation.Length(32, 32)),
+		validation.Field(&c.NamespaceId, validation.Required, validation.Length(36, 36)),
 		validation.Field(&c.Key, validation.Required, validation.Length(1, 128)),
 		validation.Field(&c.Comment, validation.Length(1, 255)),
-		validation.Field(&c.UserId, validation.Required, validation.Length(32, 32)),
+		validation.Field(&c.UserId, validation.Required, validation.Length(36, 36)),
 	)
 }
 
@@ -455,10 +473,10 @@ type UpdateConfigReq struct {
 
 func (c *UpdateConfigReq) Validate() error {
 	return validation.ValidateStruct(c,
-		validation.Field(&c.Id, validation.Required, validation.Length(32, 32)),
+		validation.Field(&c.Id, validation.Required, validation.Length(36, 36)),
 		validation.Field(&c.Key, validation.Required, validation.Length(1, 128)),
 		validation.Field(&c.Comment, validation.Length(1, 255)),
-		validation.Field(&c.UserId, validation.Required, validation.Length(32, 32)),
+		validation.Field(&c.UserId, validation.Required, validation.Length(36, 36)),
 	)
 }
 
@@ -523,8 +541,8 @@ type DeleteConfigReq struct {
 
 func (c *DeleteConfigReq) Validate() error {
 	return validation.ValidateStruct(c,
-		validation.Field(&c.Id, validation.Required, validation.Length(32, 32)),
-		validation.Field(&c.UserId, validation.Required, validation.Length(32, 32)),
+		validation.Field(&c.Id, validation.Required, validation.Length(36, 36)),
+		validation.Field(&c.UserId, validation.Required, validation.Length(36, 36)),
 	)
 }
 
@@ -578,7 +596,7 @@ type ConfigHistoryReq struct {
 
 func (c *ConfigHistoryReq) Validate() error {
 	return validation.ValidateStruct(c,
-		validation.Field(&c.NamespaceId, validation.Required, validation.Length(32, 32)),
+		validation.Field(&c.NamespaceId, validation.Required, validation.Length(36, 36)),
 		validation.Field(&c.Limit, validation.Max(100)),
 		validation.Field(&c.Offset, validation.Min(0)),
 	)
@@ -652,10 +670,10 @@ type ReleaseConfigReq struct {
 
 func (c *ReleaseConfigReq) Validate() error {
 	return validation.ValidateStruct(c,
-		validation.Field(&c.NamespaceId, validation.Required, validation.Length(32, 32)),
+		validation.Field(&c.NamespaceId, validation.Required, validation.Length(36, 36)),
 		validation.Field(&c.Name, validation.Required, validation.Length(1, 64)),
 		validation.Field(&c.Comment, validation.Length(1, 255)),
-		validation.Field(&c.UserId, validation.Required, validation.Length(32, 32)),
+		validation.Field(&c.UserId, validation.Required, validation.Length(36, 36)),
 	)
 }
 
@@ -742,9 +760,9 @@ func (c *ConfigModel) Release(req *ReleaseConfigReq) error {
 	}
 
 	tx := database.Conn().Begin()
-	tx = database.Insert(tx, "release", release)
+	tx = database.Insert(tx, "`release`", release)
 	tx = database.Insert(tx, "release_history", releaseHistory)
-	tx = RecordTable(tx, "release", "", req.UserId, com.OpCreate, id)
+	tx = RecordTable(tx, "`release`", "", req.UserId, com.OpCreate, id)
 	tx = RecordTable(tx, "release_history", "", req.UserId, com.OpCreate, historyId)
 	if tx.Error != nil {
 		tx.Rollback()
@@ -767,7 +785,7 @@ type ConfigReleaseHistoryReq struct {
 
 func (c *ConfigReleaseHistoryReq) Validate() error {
 	return validation.ValidateStruct(c,
-		validation.Field(&c.NamespaceId, validation.Required, validation.Length(32, 32)),
+		validation.Field(&c.NamespaceId, validation.Required, validation.Length(36, 36)),
 		validation.Field(&c.Limit, validation.Max(100)),
 		validation.Field(&c.Offset, validation.Min(0)),
 	)
@@ -833,8 +851,8 @@ func (c *ConfigModel) GetReleaseHistory(req *ConfigReleaseHistoryReq) (*ConfigRe
 	db = db.Table("release_history t1").
 		Select("t1.id,t1.release_id,t1.pre_release_id,t1.op_type,t1.create_by,t1.create_time,"+
 			"t1.update_by,t1.update_time,t2.name,t2.comment,t2.config,t3.config AS pre_config").
-		Joins("JOIN release t2 ON t2.id=t1.release_id AND t2.is_delete=0").
-		Joins("LEFT JOIN release t3 ON t3.id=t1.pre_release_id AND t3.is_delete=0").
+		Joins("JOIN `release` t2 ON t2.id=t1.release_id AND t2.is_delete=0").
+		Joins("LEFT JOIN `release` t3 ON t3.id=t1.pre_release_id AND t3.is_delete=0").
 		Where("t1.namespace_id=? AND t1.is_delete=0", req.NamespaceId).
 		Order("update_time DESC").Limit(req.Limit).Offset(req.Offset).
 		Find(&releaseHistories)
@@ -911,7 +929,7 @@ func (c *ConfigModel) GetReleaseHistory(req *ConfigReleaseHistoryReq) (*ConfigRe
 
 	db = database.Conn()
 	db = db.Table("release_history t1").
-		Joins("JOIN release t2 ON t2.id=t1.release_id AND t2.is_delete=0").
+		Joins("JOIN `release` t2 ON t2.id=t1.release_id AND t2.is_delete=0").
 		Where("t1.namespace_id=? AND t1.is_delete=0", req.NamespaceId).Count(&resp.Total)
 	if db.Error != nil {
 		log.Error(db.Error)
@@ -928,8 +946,8 @@ type RollbackConfigReq struct {
 
 func (c *RollbackConfigReq) Validate() error {
 	return validation.ValidateStruct(c,
-		validation.Field(&c.NamespaceId, validation.Required, validation.Length(32, 32)),
-		validation.Field(&c.UserId, validation.Required, validation.Length(32, 32)),
+		validation.Field(&c.NamespaceId, validation.Required, validation.Length(36, 36)),
+		validation.Field(&c.UserId, validation.Required, validation.Length(36, 36)),
 	)
 }
 
@@ -978,7 +996,7 @@ func (c *ConfigModel) Rollback(req *RollbackConfigReq) error {
 		Config []byte
 	}
 	db = database.Conn()
-	db = db.Table("release").Select("config").Where("id=?", lastHistory.PreReleaseId).Scan(&backRelease)
+	db = db.Table("`release`").Select("config").Where("id=?", lastHistory.PreReleaseId).Scan(&backRelease)
 	if db.Error != nil {
 		log.Error(db.Error)
 		return errors.Wrap(db.Error, "db error")
@@ -1053,9 +1071,9 @@ func (c *ConfigModel) Rollback(req *RollbackConfigReq) error {
 	for _, item := range updateItems {
 		tx = database.Update(tx, "item", item, "id=?", item["id"])
 	}
-	tx = database.Update(tx, "release", release, "id=?", lastHistory.PreReleaseId)
+	tx = database.Update(tx, "`release`", release, "id=?", lastHistory.PreReleaseId)
 	tx = database.Insert(tx, "release_history", releaseHistory)
-	tx = RecordTable(tx, "release", "", req.UserId, com.OpUpdate, lastHistory.PreReleaseId)
+	tx = RecordTable(tx, "`release`", "", req.UserId, com.OpUpdate, lastHistory.PreReleaseId)
 	tx = RecordTable(tx, "release_history", "", req.UserId, com.OpCreate, historyId)
 	if tx.Error != nil {
 		tx.Rollback()
@@ -1081,10 +1099,10 @@ type SyncConfigReq struct {
 
 func (c *SyncConfigReq) Validate() error {
 	return validation.ValidateStruct(c,
-		validation.Field(&c.FromNamespaceId, validation.Required, validation.Length(32, 32)),
+		validation.Field(&c.FromNamespaceId, validation.Required, validation.Length(36, 36)),
 		validation.Field(&c.ToClusterIds, validation.Required),
 		validation.Field(&c.Keys, validation.Required),
-		validation.Field(&c.UserId, validation.Required, validation.Length(32, 32)),
+		validation.Field(&c.UserId, validation.Required, validation.Length(36, 36)),
 	)
 }
 
@@ -1155,7 +1173,7 @@ func (c *ConfigModel) Sync(req *SyncConfigReq) error {
 	var toItems []toItem
 	db = database.Conn()
 	db = db.Table("item t1").Select("t1.id,t1.key,t1.value,t2.id namespace_id").
-		Joins("namespace t2 ON t1.namespace_id=t2.id AND t2.name=? AND cluster_id IN (?) AND t2.is_delete=0",
+		Joins("JOIN namespace t2 ON t1.namespace_id=t2.id AND t2.name=? AND cluster_id IN (?) AND t2.is_delete=0",
 			namespace.Name, req.ToClusterIds).
 		Find(&toItems)
 	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
@@ -1327,7 +1345,7 @@ func (c *ConfigModel) Watch(req *WatchConfigReq) (*WatchConfigResp, error) {
 			"app_id":      cluster.AppId,
 			"cluster_id":  cluster.ClusterId,
 			"host":        req.Host,
-			"port":        req.Host,
+			"port":        req.Port,
 			"create_time": now,
 			"update_time": now,
 		})
