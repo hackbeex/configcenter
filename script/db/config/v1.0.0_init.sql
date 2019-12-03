@@ -229,7 +229,7 @@ CREATE TABLE release_history (
   namespace_id CHAR(36) NOT NULL COMMENT '',
   release_id CHAR(36) NOT NULL COMMENT '',
   pre_release_id CHAR(36) NOT NULL COMMENT '',
-  op_type TINYINT NOT NULL DEFAULT 0 COMMENT '0:normal 1:rollback',
+  op_type VARCHAR(16) NOT NULL DEFAULT 'normal' COMMENT 'normal,rollback',
   is_delete TINYINT(1) NOT NULL DEFAULT 0 COMMENT '',
   create_by CHAR(36) NOT NULL COMMENT '',
   create_time INT NOT NULL COMMENT '',

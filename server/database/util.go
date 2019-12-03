@@ -7,7 +7,7 @@ import (
 )
 
 func InsertMany(db *gorm.DB, table string, data []map[string]interface{}) *gorm.DB {
-	if len(data) == 0 || len(data[0]) == 0 {
+	if len(data) == 0 || len(data[0]) == 0 || db.Error != nil {
 		return db
 	}
 	rowLen := len(data)
@@ -60,7 +60,7 @@ func Insert(db *gorm.DB, table string, data map[string]interface{}) *gorm.DB {
 }
 
 func Update(db *gorm.DB, table string, data map[string]interface{}, where string, whereParams ...interface{}) *gorm.DB {
-	if len(data) == 0 {
+	if len(data) == 0 || db.Error != nil {
 		return db
 	}
 	ques := make([]string, 0, len(data))

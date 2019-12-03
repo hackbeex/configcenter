@@ -63,7 +63,10 @@ func (c *Client) initConfig() error {
 	} else {
 		config := map[string]string{}
 		for _, item := range res.List {
-			c.config.Store(item.Key, &item)
+			c.config.Store(item.Key, &Item{
+				Key:   item.Key,
+				Value: item.Value,
+			})
 			config[item.Key] = item.Value
 		}
 
@@ -222,7 +225,10 @@ func (c *Client) refreshConfig() error {
 	var isChange = false
 	newMap := map[string]string{}
 	for _, item := range res.List {
-		c.config.Store(item.Key, &item)
+		c.config.Store(item.Key, &Item{
+			Key:   item.Key,
+			Value: item.Value,
+		})
 		newMap[item.Key] = item.Value
 	}
 	for key, val := range old.List {

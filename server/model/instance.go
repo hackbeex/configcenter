@@ -15,7 +15,7 @@ type InstanceModel struct {
 
 type InstanceListReq struct {
 	AppId     string `json:"app_id"`
-	ClusterId string `json:"cluster"`
+	ClusterId string `json:"cluster_id"`
 }
 
 func (c *InstanceListReq) Validate() error {
@@ -48,7 +48,8 @@ func (m *InstanceModel) List(req *InstanceListReq) (*InstanceListResp, error) {
 	}
 
 	db := database.Conn()
-	db = db.Table("instance").Select("id,host,port,create_time,update_time").Where("is_delete=0").Find(&resp.List)
+	db = db.Table("instance").Select("id,host,port,create_time,update_time").
+		Where("app_id=? AND cluster_id=? AND is_delete=0", req.AppId, req.ClusterId).Find(&resp.List)
 	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
 		log.Error(db.Error)
 		return resp, errors.Wrap(db.Error, "db error")

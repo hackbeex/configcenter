@@ -61,8 +61,8 @@ func (c *ConfigModel) Detail(req *ConfigDetailReq) (*ConfigDetailResp, error) {
 	}
 
 	db := database.Conn()
-	db = db.Table("item").Select("id,namespace_id,key,value,comment,order_num,create_by,create_time,update_by,update_time").
-		Where("id=?", req.Id).Scan(&resp)
+	db = db.Table("item").Select("id,namespace_id,`key`,value,comment,order_num,create_by,create_time,update_by,update_time").
+		Where("id=? AND is_delete=0", req.Id).Scan(&resp)
 	if db.Error != nil {
 		log.Error(db.Error)
 		return resp, errors.Wrap(db.Error, "db error")
@@ -358,7 +358,7 @@ func (c *ConfigModel) Create(req *CreateConfigReq) (*CreateConfigResp, error) {
 		IsDelete int
 	}
 	db = database.Conn()
-	db = db.Table("item").Select("id,is_delete").Where("namespace_id=? AND key=?", req.NamespaceId, req.Key).Scan(&existItem)
+	db = db.Table("item").Select("id,is_delete").Where("namespace_id=? AND `key`=?", req.NamespaceId, req.Key).Scan(&existItem)
 	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
 		log.Error(db.Error)
 		return resp, errors.Wrap(db.Error, "db error")
@@ -376,7 +376,7 @@ func (c *ConfigModel) Create(req *CreateConfigReq) (*CreateConfigResp, error) {
 	var itemOrderNum struct {
 		MaxOrderNum int
 	}
-	tx = tx.Raw("SELECT MAX(order_num) max_order_num FROM item WHERE namespace_id=? FOR UPDATE").Scan(&itemOrderNum)
+	tx = tx.Raw("SELECT MAX(order_num) max_order_num FROM item WHERE namespace_id=? FOR UPDATE", req.NamespaceId).Scan(&itemOrderNum)
 	if existItem.IsDelete == 1 {
 		item := map[string]interface{}{
 			"id":           id,
@@ -492,10 +492,11 @@ func (c *ConfigModel) Update(req *UpdateConfigReq) error {
 		Id          string
 		Key         string
 		Value       string
+		Comment     string
 		NamespaceId string
 	}
 	db := database.Conn()
-	db = db.Table("item").Select("id,key,value,namespace_id").Where("id=? AND is_delete=0", req.Id).Scan(&oldItem)
+	db = db.Table("item").Select("id,`key`,value,comment,namespace_id").Where("id=? AND is_delete=0", req.Id).Scan(&oldItem)
 	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
 		log.Error(db.Error)
 		return errors.Wrap(db.Error, "db error")
@@ -506,8 +507,8 @@ func (c *ConfigModel) Update(req *UpdateConfigReq) error {
 	if oldItem.Key != req.Key {
 		return errors.New("the key not the same as before")
 	}
-	if oldItem.Value == req.Value {
-		return errors.New("the value not change")
+	if oldItem.Value == req.Value && req.Comment == oldItem.Comment {
+		return nil
 	}
 
 	now := time.Now().Unix()
@@ -626,7 +627,7 @@ func (c *ConfigModel) GetHistory(req *ConfigHistoryReq) (*ConfigHistoryResp, err
 
 	var commits []struct {
 		Id         string
-		changeSets []byte
+		ChangeSets []byte
 	}
 	db := database.Conn()
 	db = db.Table("commit").Select("id,change_sets").Where("namespace_id=? AND is_delete=0", req.NamespaceId).
@@ -638,7 +639,7 @@ func (c *ConfigModel) GetHistory(req *ConfigHistoryReq) (*ConfigHistoryResp, err
 
 	for _, cm := range commits {
 		var sets CommitItem
-		if err := json.Unmarshal(cm.changeSets, &sets); err != nil {
+		if err := json.Unmarshal(cm.ChangeSets, &sets); err != nil {
 			log.Error(err)
 			continue
 		}
@@ -698,15 +699,55 @@ func (c *ConfigModel) Release(req *ReleaseConfigReq) error {
 		return errors.New("the namespace not exists")
 	}
 
+	//get current release config
+	lastRelease, err := c.getLastRelease(req.NamespaceId)
+	if err != nil {
+		return err
+	}
+
+	var preReleaseId string
 	var lastHistory struct {
 		ReleaseId string
+		OpType    ReleaseOpType
 	}
 	db = database.Conn()
-	db = db.Table("release_history").Select("release_id").Where("namespace_id=? AND is_delete=0", req.NamespaceId).
+	db = db.Table("release_history").Select("release_id,op_type").Where("namespace_id=? AND is_delete=0", req.NamespaceId).
 		Order("update_time DESC").Limit(1).Scan(&lastHistory)
 	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
 		log.Error(db.Error)
 		return errors.Wrap(db.Error, "db error")
+	}
+	if lastHistory.OpType == ReleaseOpNormal {
+		preReleaseId = lastHistory.ReleaseId
+	} else { //ReleaseOpRollback
+		var lastReleaseHistory struct {
+			PreReleaseId string
+		}
+		db = database.Conn()
+		db = db.Table("release_history").Select("pre_release_id").
+			Where("release_id=? AND op_type=?", lastHistory.ReleaseId, ReleaseOpNormal).
+			Order("update_time DESC").Limit(1).Scan(&lastReleaseHistory)
+		if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
+			log.Error(db.Error)
+			return errors.Wrap(db.Error, "db error")
+		}
+		preReleaseId = lastReleaseHistory.PreReleaseId
+	}
+
+	//get not release items
+	var unReleaseItem struct {
+		Id string
+	}
+	db = database.Conn()
+	db = db.Table("item").Select("id").
+		Where("namespace_id=? AND update_time > ?", req.NamespaceId, lastRelease.UpdateTime).
+		Limit(1).Scan(&unReleaseItem)
+	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
+		log.Error(db.Error)
+		return errors.Wrap(db.Error, "db error")
+	}
+	if unReleaseItem.Id == "" {
+		return errors.New("no new configs to release")
 	}
 
 	var items []struct {
@@ -714,13 +755,10 @@ func (c *ConfigModel) Release(req *ReleaseConfigReq) error {
 		Value string
 	}
 	db = database.Conn()
-	db = db.Table("item").Select("key,value").Where("namespace_id=? AND is_delete=0", req.NamespaceId).Find(&items)
+	db = db.Table("item").Select("`key`,value").Where("namespace_id=? AND is_delete=0", req.NamespaceId).Find(&items)
 	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
 		log.Error(db.Error)
 		return errors.Wrap(db.Error, "db error")
-	}
-	if len(items) == 0 {
-		return errors.New("no new configs to release")
 	}
 
 	itemMap := map[string]string{}
@@ -751,7 +789,7 @@ func (c *ConfigModel) Release(req *ReleaseConfigReq) error {
 		"namespace_id":   req.NamespaceId,
 		"cluster_id":     namespace.ClusterId,
 		"release_id":     id,
-		"pre_release_id": lastHistory.ReleaseId,
+		"pre_release_id": preReleaseId,
 		"op_type":        ReleaseOpNormal,
 		"create_by":      req.UserId,
 		"create_time":    now,
@@ -762,7 +800,7 @@ func (c *ConfigModel) Release(req *ReleaseConfigReq) error {
 	tx := database.Conn().Begin()
 	tx = database.Insert(tx, "`release`", release)
 	tx = database.Insert(tx, "release_history", releaseHistory)
-	tx = RecordTable(tx, "`release`", "", req.UserId, com.OpCreate, id)
+	tx = RecordTable(tx, "release", "", req.UserId, com.OpCreate, id)
 	tx = RecordTable(tx, "release_history", "", req.UserId, com.OpCreate, historyId)
 	if tx.Error != nil {
 		tx.Rollback()
@@ -799,18 +837,18 @@ type ChangeItem struct {
 }
 
 type ReleaseItem struct {
-	Id           string
-	ReleaseId    string
-	PreReleaseId string
-	OpType       ReleaseOpType
-	CreateBy     string
-	CreateTime   int
-	UpdateBy     string
-	UpdateTime   int
-	Name         string
-	Comment      string
-	Config       map[string]string
-	Change       map[string]ChangeItem
+	Id           string                `json:"id"`
+	ReleaseId    string                `json:"release_id"`
+	PreReleaseId string                `json:"pre_release_id"`
+	OpType       ReleaseOpType         `json:"op_type"`
+	CreateBy     string                `json:"create_by"`
+	CreateTime   int                   `json:"create_time"`
+	UpdateBy     string                `json:"update_by"`
+	UpdateTime   int                   `json:"update_time"`
+	Name         string                `json:"name"`
+	Comment      string                `json:"comment"`
+	Config       map[string]string     `json:"config"`
+	Change       map[string]ChangeItem `json:"change"`
 }
 
 type ConfigReleaseHistoryResp struct {
@@ -951,7 +989,8 @@ func (c *RollbackConfigReq) Validate() error {
 	)
 }
 
-//rollback is not a type of release, after rollback need to release manually
+//rollback is not a type of release, after rollback need to release manually.
+//you can rollback multiple times at a time.
 func (c *ConfigModel) Rollback(req *RollbackConfigReq) error {
 	if err := req.Validate(); err != nil {
 		log.Warn(err)
@@ -973,13 +1012,13 @@ func (c *ConfigModel) Rollback(req *RollbackConfigReq) error {
 		return errors.New("the namespace not exists")
 	}
 
-	// get last valid history which can rollback
+	//get last valid history which can rollback
 	var lastHistory struct {
 		ReleaseId    string
 		PreReleaseId string
 	}
 	db = database.Conn()
-	db = db.Table("release_history t1").Select("t1.release_id,t2.pre_release_id").
+	db = db.Table("release_history t1").Select("t2.release_id,t2.pre_release_id").
 		Joins("JOIN release_history t2 ON t1.release_id=t2.release_id AND t2.op_type=? AND t2.is_delete=0", ReleaseOpNormal).
 		Where("t1.namespace_id=? AND t1.is_delete=0", req.NamespaceId).
 		Order("t1.update_time DESC").Limit(1).Scan(&lastHistory)
@@ -996,7 +1035,7 @@ func (c *ConfigModel) Rollback(req *RollbackConfigReq) error {
 		Config []byte
 	}
 	db = database.Conn()
-	db = db.Table("`release`").Select("config").Where("id=?", lastHistory.PreReleaseId).Scan(&backRelease)
+	db = db.Table("release").Select("config").Where("id=?", lastHistory.PreReleaseId).Scan(&backRelease)
 	if db.Error != nil {
 		log.Error(db.Error)
 		return errors.Wrap(db.Error, "db error")
@@ -1008,12 +1047,12 @@ func (c *ConfigModel) Rollback(req *RollbackConfigReq) error {
 	}
 
 	var items []struct {
-		id    string
+		Id    string
 		Key   string
 		Value string
 	}
 	db = database.Conn()
-	db = db.Table("item").Select("id,key,value").Where("namespace_id=?", req.NamespaceId).Find(&items)
+	db = db.Table("item").Select("id,`key`,value").Where("namespace_id=?", req.NamespaceId).Find(&items)
 	if db.Error != nil {
 		log.Error(db.Error)
 		return errors.Wrap(db.Error, "db error")
@@ -1027,23 +1066,23 @@ func (c *ConfigModel) Rollback(req *RollbackConfigReq) error {
 		if val, ok := config[item.Key]; ok {
 			if val != item.Value {
 				updateItems = append(updateItems, map[string]interface{}{
-					"id":          item.id,
+					"id":          item.Id,
 					"value":       val,
 					"is_delete":   0,
 					"update_time": now,
 					"update_by":   req.UserId,
 				})
-				updateItemIds = append(updateItemIds, item.id)
+				updateItemIds = append(updateItemIds, item.Id)
 			}
 		} else {
 			updateItems = append(updateItems, map[string]interface{}{
-				"id":          item.id,
+				"id":          item.Id,
 				"value":       item.Value,
 				"is_delete":   1,
 				"update_time": now,
 				"update_by":   req.UserId,
 			})
-			updateItemIds = append(updateItemIds, item.id)
+			updateItemIds = append(updateItemIds, item.Id)
 		}
 	}
 
@@ -1073,7 +1112,7 @@ func (c *ConfigModel) Rollback(req *RollbackConfigReq) error {
 	}
 	tx = database.Update(tx, "`release`", release, "id=?", lastHistory.PreReleaseId)
 	tx = database.Insert(tx, "release_history", releaseHistory)
-	tx = RecordTable(tx, "`release`", "", req.UserId, com.OpUpdate, lastHistory.PreReleaseId)
+	tx = RecordTable(tx, "release", "", req.UserId, com.OpUpdate, lastHistory.PreReleaseId)
 	tx = RecordTable(tx, "release_history", "", req.UserId, com.OpCreate, historyId)
 	if tx.Error != nil {
 		tx.Rollback()
@@ -1154,7 +1193,7 @@ func (c *ConfigModel) Sync(req *SyncConfigReq) error {
 		Comment string
 	}
 	db = database.Conn()
-	db = db.Table("item").Select("id,key,value,comment").Where("namespace_id=? AND key IN (?) AND is_delete=0", req.FromNamespaceId, req.Keys).Scan(&items)
+	db = db.Table("item").Select("id,`key`,value,comment").Where("namespace_id=? AND key IN (?) AND is_delete=0", req.FromNamespaceId, req.Keys).Scan(&items)
 	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
 		log.Error(db.Error)
 		return errors.Wrap(db.Error, "db error")
